@@ -162,11 +162,11 @@ class Player {
 
         bullet_timer -= dt;
         while bullet_timer <= 0 {
-            bullet_timer += 0.2;
+            bullet_timer += 0.05;
             var b = bullets.spawn();
             b.pos = pos;
             b.vel = norm2((randf_range(-1, 1), randf_range(-1, 1))) * 110.0;
-            b.lifetime = 0.4;
+            b.lifetime = 1.2;
         }
     }
 
@@ -184,6 +184,14 @@ class Enemy {
     fun update_dt(dt: float) {
         let dir = (player.pos - pos);
         pos += norm2(dir) * 50.0 * dt;
+
+        // TODO: Find bullets using a spatial hash or something
+        for i in 0..bullets.alive {
+            let dif = pos - bullets.bullets[i].pos;
+            if dot2(dif, dif) < 6 * 6 {
+                enemies.kill(self);
+            }
+        }
     }
 
     fun draw() {
@@ -226,6 +234,27 @@ class EnemyList {
             i += 1;
             enemies[next]
         }
+    }
+
+    fun kill(b: Enemy) {
+        if not b.alive {
+            return;
+        }
+
+        //print("kill ", b.idx);
+
+        //print("swapping ", alive - 1, " (", bullets[alive - 1].idx, ") with ", b.idx, " - ", (bullets[b.idx] == b));
+        var tmp = enemies[alive - 1];
+        enemies[alive - 1] = enemies[b.idx];
+        enemies[b.idx] = tmp;
+
+        tmp.idx = b.idx;
+
+        b.idx = alive - 1;
+        b.alive = false;
+        alive -= 1;
+
+        //print("dec -> ", alive);
     }
 }
 
