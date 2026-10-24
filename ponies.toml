@@ -1,6 +1,6 @@
 [projects.game]
 files = [
-    "easings.poni",
+    "math.poni",
     "game.poni",
     "screen.poni",
     "update_smoothing.poni",

@@ -1,0 +1,75 @@
+fun ease_out_cubic(t: float) -> float {
+    let t = 1 - t;
+    let t = t * t * t;
+    return 1 - t;
+}
+
+fun ease_in_cubic(t: float) -> float {
+    return t * t * t;
+}
+
+fun dot2(a: vec2, b: vec2) -> float {
+    a.x * b.x + a.y * b.y
+}
+
+fun floor2(x: vec2) -> vec2i {
+    (floor(x.x), floor(x.y))
+}
+
+fun ceil2(x: vec2) -> vec2i {
+    (ceil(x.x), ceil(x.y))
+}
+
+fun ceil(x: float) -> int {
+    -floor(-x)
+}
+
+fun hsv_to_rgb(hsv: vec3) -> vec3 {
+    let h = hsv.0 % 1.0;
+    let s = hsv.1;
+    let v = hsv.2;
+
+    let h_i = floor(h * 6);
+    let f = h * 6 - h_i;
+    let p = v * (1 - s);
+    let q = v * (1 - f * s);
+    let t = v * (1 - (1 - f) * s);
+
+    if h_i == 0 { (v, t, p) }
+    else if h_i == 1 { (q, v, p) }
+    else if h_i == 2 { (p, v, t) }
+    else if h_i == 3 { (p, q, v) }
+    else if h_i == 4 { (t, p, v) }
+    else { (v, p, q) }
+}
+
+fun maxf(a: float, b: float) -> float { if a > b { a } else { b } }
+fun minf(a: float, b: float) -> float { if a < b { a } else { b } }
+
+fun rgb_to_hsv(rgb: vec3) -> vec3 {
+    let r = rgb.0; let g = rgb.1; let b = rgb.2;
+    let max = maxf(maxf(r, g), b);
+    let min = minf(minf(r, g), b);
+
+    let delta = max - min;
+    let s = if max != 0 {
+        delta / max
+    }
+    else {
+        0
+    };
+
+    var h = if s == 0 {
+        0
+    }
+    else {
+        if r == max { (g - b) / delta }
+        else if g == max { 2 + (b - r) / delta }
+        else { 4 + (r - g) / delta } // b == max
+    };
+
+    h /= 6;
+    if h < 0 { h += 1; }; // TODO: This turns into a call expression? I guess that's sort of OK? maybe this should require parens..?
+
+    (h, s, max)
+}

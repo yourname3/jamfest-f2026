@@ -8,7 +8,7 @@ let T_COLLIDER = 3;
 let T_SOLID_THIN = 4;
 
 let screen = new Screen {
-    bg_color: (#4d4d4dff),
+    bg_color: (#000f),
     target_size: (320, 240)
 };
 
@@ -56,6 +56,28 @@ let world = new World {
 };
 
 let player = new Player {};
+
+class Colors {
+    var player: vec4 = (1, 1, 1, 1);
+    var enemy: vec4 = (1, 1, 1, 1);
+
+    fun conv(rgb: vec3) -> vec4 {
+        // TODO: Swizzling would be very helpful.
+        (rgb.0, rgb.1, rgb.2, 1)
+    }
+
+    var t = 0.0;
+    fun update_dt(dt: float) {
+        t += dt * 0.3;
+        if t > 1.0 { t -= 1.0; }
+
+        var hsv = (t, 1.0, 0.85);
+        player = conv(hsv_to_rgb(hsv));
+        hsv.0 += 0.5;
+        enemy = conv(hsv_to_rgb(hsv));
+    }
+}
+let colors = new Colors{};
 
 class CameraController {
     var x_bound: vec2 = (0, 0);
@@ -172,8 +194,7 @@ class Player {
     }
 
     fun draw() {
-        //draw_rectangle(pos, pos + (1, 1), (#ffff));
-        draw_texture_flip_frame(tex.tiles, pos, false, false, (16, 0, 16, 16), (#ffff))
+        draw_texture_flip_frame(tex.tiles, pos, false, false, (16, 0, 16, 16), colors.player)
     }
 }
 
@@ -227,7 +248,7 @@ class Enemy {
 
 
     fun draw() {
-        draw_texture_flip_frame(tex.tiles, pos, false, false, (32, 0, 16, 16), (#ffff))
+        draw_texture_flip_frame(tex.tiles, pos, false, false, (32, 0, 16, 16), colors.enemy)
     }
 
     fun compute_repel_strength(enemy: Enemy) -> vec2 {
@@ -369,7 +390,7 @@ class Bullet {
     }
 
     fun draw() {
-        draw_texture_flip_frame(tex.tiles, pos, false, false, (48, 0, 16, 16), (#ffff))
+        draw_texture_flip_frame(tex.tiles, pos, false, false, (48, 0, 16, 16), colors.player)
     }
 }
 
@@ -574,6 +595,8 @@ fun update_dt(dt: float) {
     for i in 0..keys.length {
         keys[i].update();
     }
+
+    colors.update_dt(dt);
     
     screen_transition.update_dt(dt);
     //world_loader.tick();
