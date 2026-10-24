@@ -234,16 +234,23 @@ class Enemy {
 
         repel_with_others();
 
-        last_cell = enemies.hash.update(perm_idx, last_cell);
+        
 
         bullets.hash.find_all_in_radius(pos, 12, query_output_buffer);
 
         for i in 0..query_output_buffer.length {
             let bullet = bullets.bullets_perm[query_output_buffer[i]];
 
-            // Take one damage... or something
-            health -= 1;
+            if bullet.add_to_filter(self) {
+                // Take one damage... or something
+                health -= 1;
+                
+                // Knockback. Knock away from player...?
+                vel += norm2(pos - player.pos) * 150;
+            }
         }
+
+        last_cell = enemies.hash.update(perm_idx, last_cell);
 
         if health <= 0 {
             enemies.kill(self);
@@ -326,7 +333,7 @@ class EnemyList {
         for i in 0..count {
             let e = spawn();
             e.pos = (randf_range(-1000, 1000), randf_range(-1000, 1000));
-            e.health = 1;
+            e.health = 3;
         }
     }
 
@@ -376,6 +383,24 @@ class Bullet {
     let perm_idx: int;
     var last_cell: vec2i = (0, 0);
 
+    /// Enemies that this bullet isn't allowed to damage again until it is respawned.
+    /// (Note that this could be a little bit weird if an enemy itself respwans, but that
+    // shouldn't be a big deal because bullets are respawned so frequently).
+    var filter: DynArray[Enemy] = [];
+
+    /// Checks if the given enemy is in the filter, and if not, adds it. Returns whether
+    /// the enemy was newly added.
+    fun add_to_filter(e: Enemy) -> bool {
+        for i in 0..filter.length {
+            if filter[i] == e {
+                return false;
+            }
+        }
+
+        filter.push(e);
+        return true;
+    }
+
     fun set_pos(pos: vec2) {
         self.pos = pos;
         last_cell = bullets.hash.update(self.perm_idx, last_cell);
@@ -419,6 +444,8 @@ class BulletList {
             bullets_perm.push(result);
             result
         };
+
+        bullet.filter.clear();
 
         bullet.last_cell = hash.add(bullet.perm_idx);
         bullet
