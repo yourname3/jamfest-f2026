@@ -1,0 +1,185 @@
+class SpatialHash {
+    /// Each individual cell is a list of indices into the
+    /// associated object array.
+    var cells: DynArray[DynArray[int]] = [];
+    var aabb: vec4i = (0, 0, 0, 0);
+    let cell_size: float;
+
+    fun initialize() -> bool {
+        let new_aabb = (-1, -1, 1, 1);
+        resize(new_aabb);
+        true
+    }
+
+    // TODO: Real post-init function.
+    // Other TODO: Somehow this doesn't even compile. What? Oh, this poni_init thing?
+    let _flag = initialize();
+
+    
+
+    fun get_object_pos(obj: int) -> vec2 {
+        // Don't want to use function pointers here due to i t
+        // being annoying with hot reloading. Instead, just swap between
+        // our various arrays based on a flag.
+        return enemies.enemies[obj].pos;
+    }
+
+    /// Maps a position with an AABB to an index.
+    fun map(pos_i: vec2i, aabb: vec4i) -> int {
+        pos_i -= (aabb.0, aabb.1);
+        pos_i.y * (aabb.2 - aabb.0) + pos_i.x;
+    }
+
+    fun add(obj: int) -> vec2i {
+        let pos = get_object_pos(obj);
+        let pos_i = floor2(pos / cell_size);
+
+        var aabb = aabb;
+        var resize = false;
+        if pos_i.x < aabb.0 {
+            aabb.0 = pos_i.x;
+            resize = true;
+        }
+        if pos_i.x >= aabb.2 {
+            aabb.2 = pos_i.x + 1;
+            resize = true;
+        }
+        if pos_i.y < aabb.1 {
+            aabb.1 = pos_i.y;
+            resize = true;
+        }
+        if pos_i.y >= aabb.3 {
+            aabb.3 = pos_i.y + 1;
+            resize = true;
+        }
+
+        if resize {
+            self.resize(aabb);
+        }
+
+        let idx = map(pos_i, aabb);
+        //print(idx, " ", cells.length, " ; ", pos_i, " ", aabb);
+        cells[idx].push(obj);
+
+        pos_i
+    }
+
+    fun has(cell: vec2i, aabb: vec4i) -> bool {
+        (cell.x >= aabb.0 and cell.x < aabb.2)
+            and (cell.y >= aabb.1 and cell.y < aabb.3)
+    }
+
+    fun find_obj_in_arr(arr: DynArray[int], obj: int) -> int {
+        for i in 0..arr.length {
+            if arr[i] == obj {
+                //print("found ", obj, " @ ", i, " -> ", arr[i], " -- ", arr.length);
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    fun remove(obj: int, prev_cell: vec2i) -> vec2i {
+        if has(prev_cell, aabb) {
+            let idx = map(prev_cell, aabb);
+
+            let arr = cells[idx];
+            let where = find_obj_in_arr(arr, obj);
+            if where < 0 or arr.length == 0 {
+                return prev_cell; // Can't do anything?
+            }
+
+            // Swap a different object into vacated place
+            let swap = arr[arr.length - 1];
+            //print(where, " ", arr.length);
+            arr[where] = swap;
+
+            arr.pop_or_panic(); // Pop the last entry. It might have been swapped with itself.
+
+            // TODO: Could be nice to have a better representation for this, oh well
+            prev_cell = (-10000000000000, -10000000000000);
+        }
+
+        return prev_cell;
+    }
+
+    fun update(obj: int, prev_cell: vec2i) -> vec2i {
+        let pos = get_object_pos(obj);
+        let pos_i = floor2(pos / cell_size);
+
+        // TODO: vec2i comparison (==) doesn't work...
+        if pos_i.x == prev_cell.x and pos_i.y == prev_cell.y {
+            // If we are in the same cell, no need to do remove/add
+            return prev_cell;
+        }
+
+        remove(obj, prev_cell);
+        add(obj)
+    }
+
+    fun resize(new_aabb: vec4i) {
+        //print("new aabb: ", new_aabb);
+        let total = (new_aabb.2 - new_aabb.0) * (new_aabb.3 - new_aabb.1);
+
+        let new_cells: DynArray[DynArray[int]?] = [];
+        for i in 0..total {
+            new_cells.push(nil);
+        }
+
+        for x in new_aabb.0..new_aabb.2 {
+            for y in new_aabb.1..new_aabb.3 {
+                let new_idx = map((x, y), new_aabb);
+                if has((x, y), aabb) {
+                    let old_idx = map((x, y), aabb);
+                    
+                    new_cells[new_idx] = cells[old_idx];
+                }
+                else {
+                    // Create a new empty array.
+                    //print((x, y), " ", new_idx, " ", total);
+                    new_cells[new_idx] = { let x: DynArray[int] = []; x };
+                }
+            }
+        }
+
+        // Now, copy all of the cells over to the real cell array.
+        cells.clear();
+        for i in 0..new_cells.length {
+            // Every cell should be init'd.
+            cells.push(new_cells[i].or_panic());
+        }
+
+        //print(" --> ", cells.length);
+        aabb = new_aabb;
+    }
+
+    fun find_all_in_radius(center: vec2, radius: float, output: DynArray[int]) {
+        output.clear();
+
+        var min = floor2((center - radius) / cell_size);
+        var max = ceil2((center + radius) / cell_size);
+
+        if min.x < aabb.0 { min.x = aabb.0; }
+        if min.y < aabb.1 { min.y = aabb.1; }
+
+        if max.x >= aabb.2 { max.x = aabb.2 - 1; }
+        if max.y >= aabb.3 { max.y = aabb.3 - 1; }
+
+        let rsquared = radius * radius;
+
+        for x in min.x..=max.x {
+            for y in min.y..=max.y {
+                let arr = cells[map((x, y), aabb)];
+
+                for i in 0..arr.length {
+                    let pos = get_object_pos(arr[i]);
+                    let dif = pos - center;
+                    if dot2(dif, dif) <= rsquared {
+                        output.push(arr[i]);
+                    }
+                }
+            }
+        }
+    }
+}
+

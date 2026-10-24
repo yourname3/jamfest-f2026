@@ -178,14 +178,19 @@ class Player {
 
 class Enemy {
     var idx: int;
+    /// Index that is never reassigned. Used for spatial hash queries.
+    let perm_idx: int;
     var alive: bool = true;
     var pos: vec2 = (0, 0);
 
     var vel: vec2 = (0, 0);
 
+    /// For spatial hash.
+    var last_cell: vec2i = (0, 0);
+
     fun update_dt(dt: float) {
         let dir = (player.pos - pos);
-        let desired_vel = norm2(dir) * 50.0;
+        let desired_vel = norm2(dir) * 25.0;
 
         var accel = desired_vel - vel;
         var max_accel = len2(accel);
@@ -208,6 +213,8 @@ class Enemy {
         }
 
         repel_with_others();
+
+        last_cell = enemies.hash.update(perm_idx, last_cell);
     }
 
     fun draw() {
@@ -217,7 +224,7 @@ class Enemy {
     fun compute_repel_strength(enemy: Enemy) -> vec2 {
         let dir = enemy.pos - pos;
         let len_square = dot2(dir, dir);
-        if len_square > 128 * 128 {
+        if len_square > 64 * 64 {
             return (0, 0);
         }
         let strength = 0.5 / (1 + 0.0007 * len_square);
@@ -229,8 +236,19 @@ class Enemy {
         var offset: vec2 = (0, 0);
 
         // TODO: Use spatial hash to find candidates.
-        for i in 0..enemies.alive {
-            let enemy = enemies.enemies[i];
+        // for i in 0..enemies.alive {
+        //     let enemy = enemies.enemies[i];
+        //     if enemy != self {
+        //         offset += compute_repel_strength(enemy);
+        //     }
+        // }
+        enemies.hash.find_all_in_radius(pos, 64, query_output_buffer);
+        //print("found ", query_output_buffer.length, " enemies");
+        for i in 0..query_output_buffer.length {
+            // Must use perm array for queries from spatial hash
+            let idx = query_output_buffer[i];
+            //print(idx, " ", enemies.enemies_perm.length);
+            let enemy = enemies.enemies_perm[idx];
             if enemy != self {
                 offset += compute_repel_strength(enemy);
             }
@@ -241,12 +259,17 @@ class Enemy {
     }
 }
 
+let CELL_SIZE = 64;
+let query_output_buffer: DynArray[int] = []; // Used for spatial hash queries
+
 class EnemyList {
     let enemies: DynArray[Enemy] = [];
+    let enemies_perm: DynArray[Enemy] = [];
+    let hash: SpatialHash = new SpatialHash { cell_size: CELL_SIZE };
     var alive: int = 0;
 
     fun spawn() -> Enemy {
-        if alive < enemies.length {
+        let enemy = if alive < enemies.length {
             alive += 1;
             enemies[alive - 1].alive = true;
             enemies[alive - 1].idx = alive - 1;
@@ -254,10 +277,14 @@ class EnemyList {
         }
         else {
             alive += 1;
-            let result = new Enemy { idx: enemies.length };
+            let result = new Enemy { idx: enemies.length, perm_idx: enemies_perm.length };
             enemies.push(result);
+            enemies_perm.push(result);
             result
-        }
+        };
+
+        enemy.last_cell = hash.add(enemy.perm_idx);
+        enemy
     }
 
     fun spawn_random_pos(count: int) {
@@ -295,6 +322,8 @@ class EnemyList {
         b.idx = alive - 1;
         b.alive = false;
         alive -= 1;
+
+        b.last_cell = hash.remove(b.perm_idx, b.last_cell);
 
         //print("dec -> ", alive);
     }

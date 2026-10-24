@@ -1,13 +1,27 @@
 {
-    "activeFile": "",
+    "activeFile": "test.tmj",
     "expandedProjectPaths": [
+        "."
     ],
     "file.lastUsedOpenFilter": "All Files (*)",
     "fileStates": {
+        "test.tmj": {
+            "scale": 0.6313541666666667,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 239.9604025738327,
+                "y": 160.76555023923441
+            }
+        },
+        "tiles.tsj": {
+            "scaleInDock": 1
+        }
     },
     "openFiles": [
+        "test.tmj"
     ],
     "project": "jamfest.tiled-project",
     "recentFiles": [
+        "test.tmj"
     ]
 }
