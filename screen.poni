@@ -1,0 +1,56 @@
+/// Helper class for drawing things on a letterboxed canvas.
+class Screen {
+    var offset: vec2 = (0, 0);
+    var scale: float = 1;
+
+    var target_offset: vec2 = (0, 0);
+    var target_size: vec2;
+
+    let bg_color: vec4;
+
+    let camera = new Camera2D {
+        rotation: 0,
+        zoom: (1.0, 1.0),
+        target: (0, 0),
+        offset: (0, 0),
+        viewport: new CameraViewport {
+            offset: (0, 0),
+            size: (0, 0)
+        }
+    };
+
+    fun convert_coord(x: vec2) -> vec2 {
+        (x * scale)
+    }
+
+    fun inverse_convert(x: vec2) -> vec2 {
+        ((x - offset) / scale) - (0.5 * target_size) - target_offset
+    }
+
+    fun draw_bg() {
+        draw_rectangle((-target_size / 2) - target_offset, target_size, bg_color);
+    }
+
+    fun update() {
+        let screen_size = (screen_width(), screen_height());
+        let scales = screen_size / target_size;
+        let best = if scales.x < scales.y { scales.x } else { scales.y };
+
+        scale = best;
+
+        camera.zoom = (2.0, 2.0) / target_size;
+        camera.offset = (0, 0);
+        camera.target = -target_offset;
+
+        let viewport = camera.viewport.or_panic();
+        viewport.offset = (screen_size - (target_size * scale)) * 0.5;
+        offset = viewport.offset;
+        viewport.size = target_size * scale;
+
+        set_camera(camera);
+    }
+
+    fun mouse() -> vec2 {
+        inverse_convert(mouse_position())
+    }
+}

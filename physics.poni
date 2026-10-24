@@ -1,0 +1,821 @@
+// Note: This code originally derives from macroquad_platformer.
+
+
+
+fun tile_or(s: int, other: int) -> int {
+    if s == T_EMPTY and other == T_EMPTY { return T_EMPTY; }
+    if s == T_JUMP_THROUGH and other == T_JUMP_THROUGH { return T_JUMP_THROUGH; }
+    if s == T_JUMP_THROUGH and other == T_EMPTY { return T_JUMP_THROUGH; }
+    if s == T_EMPTY and other == T_JUMP_THROUGH { return T_JUMP_THROUGH; }
+    T_SOLID
+}
+
+class StaticTiledLayer {
+    var colliders: DynArray[int];
+    var tile_width: float;
+    var tile_height: float;
+    var width: int;
+    var tag: int;
+}
+
+class Actor {
+    var collider: Collider;
+}
+
+class Solid {
+    var collider: Collider;
+}
+
+class Collider {
+    var collidable: bool = true;
+    var squished: bool = false;
+    var pos: vec2;
+    var size: vec2i;
+    var remainder: vec2 = (0, 0);
+    var squishers: DynArray[Solid] = [];
+    var descent: bool = false;
+    var seen_wood: bool = false;
+
+    var on_ground: bool = false;
+    var on_ceiling: bool = false;
+
+    var on_ground_mp: bool = false;
+
+    var moveable_by_actors: bool = true;
+
+    fun rect() -> vec4 {
+        (pos.x, pos.y, size.x, size.y)
+    }
+
+    fun rect_trim_y() -> vec4 {
+        (pos.x, pos.y + 1, size.x, size.y - 2)
+    }
+
+    fun rect_trim_x() -> vec4 {
+        (pos.x + 1, pos.y, size.x - 2, size.y)
+    }
+}
+
+class World {
+    var layers: DynArray[StaticTiledLayer] = [];
+    var actors: DynArray[Actor] = [];
+    var solids: DynArray[Solid] = [];
+
+    fun pre_physics_step() {
+        for i in 0..actors.length {
+            actors[i].collider.on_ground_mp = false; // Reset
+        }
+    }
+
+    fun add_actor(pos: vec2, size: vec2i) -> Actor {
+        let tile = collide_solids(pos, size);
+        
+        var descent = false;
+        var seen_wood = false;
+        if tile == T_JUMP_THROUGH {
+            descent = true;
+            seen_wood = true;
+        }
+
+        let collider = new Collider {
+            pos: pos,
+            size: size,
+            descent: descent,
+            seen_wood: seen_wood
+        };
+
+        let actor = new Actor {
+            collider: collider
+        };
+
+        actors.push(actor);
+        actor
+    }
+
+    fun add_solid(pos: vec2, size: vec2i) -> Solid {
+        let collider = new Collider {
+            pos: pos,
+            size: size
+        };
+
+        let solid = new Solid { collider: collider };
+        solids.push(solid);
+        solid
+    }
+
+    fun collide_solids(pos: vec2, size: vec2i) -> int {
+        let tile = collide_tag(1, pos, size);
+        if tile != T_EMPTY {
+            return tile;
+        }
+
+        for i in 0..solids.length {
+            let solid = solids[i];
+            if solid.collider.collidable and rect_overlaps_totally(solid.collider.rect(),
+                (pos.x, pos.y, size.x, size.y))
+            {
+                return T_COLLIDER;
+            }
+        }
+
+        T_EMPTY
+    }
+
+    fun solid_move(solid: Solid, delta: vec2) {
+        let collider = solid.collider;
+        collider.remainder += delta;
+        let move = round2(collider.remainder);
+
+        let riding_actors: DynArray[Actor] = [];
+        let pushing_actors: DynArray[Actor] = [];
+
+        let riding_rect: vec4 = (collider.pos.x, collider.pos.y - 1,
+            collider.size.x, 1);
+        let pushing_rect: vec4 = (collider.pos.x + move.x, collider.pos.y + move.y,
+            collider.size.x, collider.size.y);
+        
+        for i in 0..self.actors.length {
+            let actor = actors[i];
+
+            let rider_rect: vec4 = (
+                actor.collider.pos.x,
+                actor.collider.pos.y + actor.collider.size.y,
+                actor.collider.size.x,
+                1.0
+            );
+            if rect_overlaps_totally(riding_rect, rider_rect) {
+                riding_actors.push(actor);
+            }
+            else {
+                if rect_overlaps_totally(pushing_rect, actor.collider.rect()) and not actor.collider.squished {
+                    pushing_actors.push(actor);
+                }
+            }
+
+            if not rect_overlaps_totally(pushing_rect, actor.collider.rect()) {
+                // TODO: Remove squisher..?
+            }
+        }
+
+        //collider.collidable = false;
+        for i in 0..riding_actors.length {
+            self.move_h(riding_actors[i], move.x);
+            self.move_v(riding_actors[i], move.y, false);
+
+            if collider.remainder.y < 0 {
+                riding_actors[i].collider.on_ground_mp = true;
+            }
+        }
+        for i in 0..pushing_actors.length {
+            let squished = not self.move_h(pushing_actors[i], move.x);
+            if squished {
+                // TODO: squishers...?
+            }
+
+            let squished = not self.move_v_impl(pushing_actors[i], move.y, false, false, solid);
+            if collider.remainder.y < 0 {
+                pushing_actors[i].collider.on_ground_mp = true;
+            }
+            if squished {
+                // Attempt to squeeze the actor somewhere, based on where it is located relative
+                // to us.
+                // NOTE: This should be handled by move_v_impl now...?
+                // let actor = pushing_actors[i];
+                // let actor_center = actor.collider.pos + actor.collider.size / 2;
+                // let my_center = collider.pos + collider.size / 2;
+                // var dist = actor_center.x - my_center.x;
+                // if dist < 0 {
+                //     if dist >= -4 {
+                //         // Try to push it back onto ourselves.
+                //         self.move_h_no_riders(actor, -dist);
+                //     }
+                //     else {
+                //         // Try to push it to the left.
+                //         if not self.move_h_no_riders(actor, -dist - actor.collider.size.x / 2 - collider.size.x / 2) {
+                //             // It couldn't be squeezed out. Uh oh!
+                //         }
+                //     }
+                // }
+                // else {
+                //     if dist <= 4 {
+                //         self.move_h_no_riders(actor, -dist);
+                //     }
+                //     else {
+                //         if not self.move_h_no_riders(actor, -dist + actor.collider.size.x / 2 + collider.size.x / 2) {
+                //         }
+                //     }
+                // }
+            }
+        }
+        //collider.collidable = true;
+
+        if move.x != 0 {
+            collider.remainder.x -= move.x;
+            collider.pos.x += move.x;
+        }
+        if move.y != 0 {
+            collider.remainder.y -= move.y;
+            collider.pos.y += move.y;
+        }
+    }
+
+    fun collide_layer_point(layer: StaticTiledLayer, pos: vec2) -> int {
+        let tile_width = layer.tile_width;
+        let tile_height = layer.tile_height;
+        let layer_width = layer.width;
+        let layer_tag = layer.tag;
+
+        let layer_height = layer.colliders.length / layer_width + 1;
+
+        let y = floor(pos.y / tile_height);
+        let x = floor(pos.x / tile_width);
+
+        let ix = y * layer_width + x;
+        if y >= 0
+            and y < layer_height
+            and x >= 0
+            and x < layer_width
+            and ix >= 0
+            and ix < layer.colliders.length
+            and layer.colliders[ix] != T_EMPTY
+        {
+            let collider = layer.colliders[ix];
+            // NOTE: No support for T_SOLID_THIN
+            return collider;
+        }
+        T_EMPTY;
+    }
+
+    fun collide_tag(tag: int, pos: vec2, size: vec2i) -> int {
+        for i in 0..layers.length {
+            let layer = layers[i];
+
+            let tile_width = layer.tile_width;
+            let tile_height = layer.tile_height;
+            let layer_width = layer.width;
+            let layer_tag = layer.tag;
+
+            let layer_height = layer.colliders.length / layer_width + 1;
+            fun check(check_pos: vec2) -> int {
+                let y = floor(check_pos.y / tile_height);
+                let x = floor(check_pos.x / tile_width);
+
+                let ix = y * layer_width + x;
+                if y >= 0
+                    and y < layer_height
+                    and x >= 0
+                    and x < layer_width
+                    and ix >= 0
+                    and ix < layer.colliders.length
+                    and layer_tag == tag
+                    and layer.colliders[ix] != T_EMPTY
+                {
+                    let collider = layer.colliders[ix];
+                    if collider == T_SOLID_THIN {
+                        // Check against the collision shape of the thin collider.
+                        let rect = (x * 16, y * 16, 16, 6);
+                        // NOTE: originally had (pos, size * 16). I wonder if a promotion
+                        // from (vec2, vec2) or (vec2, vec2i) -> vec4 would make sense... it
+                        // is very natural.
+                        if rect_overlaps(rect, (pos.x, pos.y, size.x, size.y)) {
+                            return T_SOLID;
+                        }
+                        else {
+                            return T_EMPTY;
+                        }
+                    }
+
+                    return collider;
+                }
+                T_EMPTY;
+            };
+
+            var tile = check(pos);
+            tile = tile_or(tile, check(pos + (size.x - 1, 0)));
+            tile = tile_or(tile, check(pos + (size.x - 1, size.y - 1)));
+            tile = tile_or(tile, check(pos + (0, size.y - 1)));
+
+            if tile != T_EMPTY { return tile; }
+
+            if size.x > tile_width {
+                var x = pos.x;
+                while { x += tile_width; x < pos.x + size.x - 1 }
+                {
+                    tile = check((x, pos.y));
+                    tile = tile_or(tile, check((x, pos.y + size.y - 1)));
+                    if tile != T_EMPTY { return tile; }
+                }
+            }
+
+            if size.y > tile_height {
+                var y = pos.y;
+                while { y += tile_height; y < pos.y + size.y - 1 }
+                {
+                    tile = check((pos.x, y));
+                    tile = tile_or(tile, check((pos.x + size.x - 1, y)));
+                    if tile != T_EMPTY { return tile; }
+                }
+            }
+        }
+
+        T_EMPTY
+    }
+
+    fun try_move_v(actor: Actor, delta: float, discovered: DynArray[Actor], riders: DynArray[Actor], pushed_by: Solid?) -> bool {
+        let col = actor.collider;
+        let sign = signumf(delta);
+
+        let tile = collide_solids(col.pos + (0, delta), col.size);
+
+        let riding_rect: vec4 = (col.pos.x + col.size.x / 4, col.pos.y - 1,
+                col.size.x / 2, 1);
+
+        // TODO: descent, etc.
+
+        if tile == T_EMPTY or pushed_by.is_some() {
+            var result = (tile == T_EMPTY);
+            discovered.push(actor);
+
+            // This actor succeeded the move so far. Now check all children in chain.
+            for i in 0..actors.length {
+                let candidate = actors[i];
+
+                var check = true;
+                for j in 0..discovered.length {
+                    if candidate == discovered[j] {
+                        check = false;
+                        break;
+                    }
+                }
+
+                if check
+                    and signumf(actors[i].collider.pos.y - col.pos.y) == sign
+                    and rect_overlaps(candidate.collider.rect(), actor.collider.rect_trim_x()) {
+
+                    let t = candidate.collider.moveable_by_actors and try_move_v(candidate, delta, discovered, riders, pushed_by);      
+                    result = result and t; 
+
+                    if not result and not pushed_by.is_some() { break; } 
+                }
+
+                let rider_rect: vec4 = (
+                    candidate.collider.pos.x,
+                    candidate.collider.pos.y + candidate.collider.size.y,
+                    candidate.collider.size.x,
+                    1.0
+                );
+                if rect_overlaps(riding_rect, rider_rect) {
+                    //print("found rider");
+                    // Found rider
+                    var exists = false;
+                    for j in 0..riders.length {
+                        if riders[j] == candidate {
+                            exists = true;
+                            break;
+                        }
+                    }
+
+                    if not exists {
+                        riders.push(candidate);
+                    }
+                }
+            }
+
+            return result;
+        }
+        else {
+            // This actor failed the move.
+            return false;
+        }
+    }
+
+    fun squish_h(actor: Actor, pushed_by: Solid) {
+        let pushed_col = pushed_by.collider;
+        let actor_center = actor.collider.pos + actor.collider.size / 2;
+        let my_center = pushed_col.pos + pushed_col.size / 2;
+        var dist = actor_center.x - my_center.x;
+        if dist < 0 {
+            if dist >= -4 {
+                // Try to push it back onto ourselves.
+                self.move_h_no_riders(actor, -dist);
+            }
+            else {
+                // Try to push it to the left.
+                if not self.move_h_no_riders(actor, -dist - actor.collider.size.x / 2 - pushed_col.size.x / 2) {
+                    // It couldn't be squeezed out. Uh oh!
+                }
+            }
+        }
+        else {
+            if dist <= 4 {
+                self.move_h_no_riders(actor, -dist);
+            }
+            else {
+                if not self.move_h_no_riders(actor, -dist + actor.collider.size.x / 2 + pushed_col.size.x / 2) {
+                }
+            }
+        }
+    }
+
+    fun move_v_impl(actor: Actor, dy: float, update_flags: bool, enable_riders: bool, pushed_by: Solid?) -> bool {
+        let col = actor.collider;
+        col.remainder.y += dy;
+
+        if update_flags {
+            col.on_ground = col.on_ground_mp; // Reset to state from moving platform
+            col.on_ceiling = false;
+        }
+
+        // print("initial: ", col.on_ground);
+
+        var move = round(col.remainder.y);
+        if move != 0 {
+            col.remainder.y -= move;
+            let sign = signum(move);
+
+            while move != 0 {
+                // TODO: Descent etc.
+                var discovered: DynArray[Actor] = [];
+                var riders: DynArray[Actor] = [];
+                if try_move_v(actor, sign, discovered, riders, pushed_by) {
+                    for i in 0..discovered.length {
+                        discovered[i].collider.pos.y += sign;
+                    }
+                    move -= sign;
+                    // if sign < 0 {
+                    //     col.on_ground = false;
+                    // }
+                    // if sign > 0 {
+                    //     col.on_ceiling = false;
+                    // }
+
+                    if enable_riders {
+                        for i in 0..riders.length {
+                            var is_rider = true;
+                            for j in 0..discovered.length {
+                                if discovered[j] == riders[i] {
+                                    is_rider = false;
+                                    break;
+                                }
+                            }
+
+                            // for j in 0..banned.length {
+                            //     if banned[j] == riders[i] {
+                            //         is_rider = false;
+                            //         break;
+                            //     }
+                            // }
+
+                            if is_rider {
+                                // Handle rider. Ban existing discovered boxes.
+                                move_v_impl(riders[i], sign, update_flags, true, pushed_by);
+                                //banned.push(riders[i]);
+                            }
+                        }
+                    }
+                }
+                else {
+                    // We are being pushed unstoppably. Try to squish out of the way.
+                    if pushed_by.is_some() {
+                        let pushed_by = pushed_by.or_panic();
+                        //print("squishing ", discovered.length);
+                        for i in 0..discovered.length {
+                            squish_h(discovered[i], pushed_by);
+                        }
+
+                        // Now that we've been squished, try moving again, but don't provide a squisher
+                        // because that would recurse forever.
+                        move_v_impl(actor, dy, update_flags, enable_riders, nil);
+                    }
+
+                    if update_flags {
+                        if sign > 0 {
+                            col.on_ground = true;
+                        }
+                        if sign < 0 {
+                            col.on_ceiling = true;
+                        }
+                    }
+                    return false;
+                }
+                // var tile = if collide_actors_v(actor, col.pos + (0, sign), col.size).is_some() { T_COLLIDER } else { T_EMPTY };
+
+                // if tile == T_EMPTY {
+                //     tile = collide_solids(
+                //         col.pos + (0, sign),
+                //         col.size
+                //     );
+                // }
+
+                // if tile == T_JUMP_THROUGH and col.descent {
+                //     col.seen_wood = true;
+                // }
+                // if tile == T_JUMP_THROUGH and sign < 0 {
+                //     col.seen_wood = true;
+                //     col.descent = true;
+                // }
+
+                // if tile == T_EMPTY or (tile == T_JUMP_THROUGH and col.descent) {
+                //     col.pos.y += sign;
+                //     move -= sign;
+                // }
+                // else {
+                //     return false;
+                // }
+            }
+        }
+
+        else {
+            // Couldn't update floor/ceiling flags with movement, update them
+            // with raycasts.
+            var discovered: DynArray[Actor] = [];
+            var riders: DynArray[Actor] = [];
+            // Ground.
+            if not try_move_v(actor, 1, discovered, riders, nil) {
+                col.on_ground = true;
+            }
+
+            discovered = [];
+            riders = [];
+            if not try_move_v(actor, -1, discovered, riders, nil) {
+                col.on_ceiling = true;
+            }
+        }
+
+        let tile = collide_solids(col.pos, col.size);
+        if tile != T_JUMP_THROUGH {
+            col.seen_wood = false;
+            col.descent = false;
+        }
+
+        true
+    }
+
+    fun move_v(actor: Actor, dy: float, update_flags: bool) -> bool {
+        move_v_impl(actor, dy, update_flags, true, nil);
+    }
+
+    fun collide_actors_h(mover: Actor, pos: vec2, sign: int, size: vec2i, chain: DynArray[Actor]) -> Actor? {
+        for i in 0..actors.length {
+            let actor = actors[i];
+            var check = true;
+            for j in 0..chain.length {
+                if actor == chain[j] {
+                    check = false;
+                    break;
+                }
+            }
+            if check
+                and signumf(actors[i].collider.pos.x - mover.collider.pos.x) == sign
+                and rect_overlaps(actor.collider.rect(), mover.collider.rect_trim_y()) { return actor; }
+        }
+
+        nil
+    }
+
+    fun collide_actors_v(mover: Actor, pos: vec2, size: vec2i) -> Actor? {
+        for i in 0..actors.length {
+            let actor = actors[i];
+
+            let check = actor != mover;
+            
+            if check and rect_overlaps(actor.collider.rect(), mover.collider.rect_trim_x()) { return actor; }
+        }
+
+        nil
+    }
+
+    fun collide_actors_check(mover: Actor, pos: vec2, size: vec2i) -> Actor? {
+        for i in 0..actors.length {
+            let actor = actors[i];
+
+            let check = actor != mover;
+            
+            if check and rect_overlaps(actor.collider.rect(), mover.collider.rect()) { return actor; }
+        }
+
+        nil
+    }
+
+    fun try_move_h(actor: Actor, delta: float, discovered: DynArray[Actor], riders: DynArray[Actor], banned: DynArray[Actor]) -> bool {
+        for i in 0..banned.length {
+            if actor == banned[i] {
+                return true; // This one already moved.
+            }
+        }
+
+        let col = actor.collider;
+        let sign = signumf(delta);
+
+        let tile = collide_solids(col.pos + (delta, 0), col.size);
+
+        let riding_rect: vec4 = (col.pos.x + col.size.x / 4, col.pos.y - 1,
+                col.size.x / 2, 1);
+
+        if tile == T_EMPTY or tile == T_JUMP_THROUGH {
+            var result = true;
+            discovered.push(actor);
+
+            // This actor succeeded the move so far. Now check all children in chain.
+            for i in 0..actors.length {
+                let candidate = actors[i];
+
+                var check = true;
+                for j in 0..discovered.length {
+                    if candidate == discovered[j] {
+                        check = false;
+                        break;
+                    }
+                }
+
+                if check
+                    and signumf(actors[i].collider.pos.x - col.pos.x) == sign
+                    and rect_overlaps(candidate.collider.rect(), actor.collider.rect_trim_y()) {
+                    let t = candidate.collider.moveable_by_actors and try_move_h(candidate, delta, discovered, riders, banned);      
+                    result = result and t; 
+                    if not result { break; } 
+                }
+
+                // Look for riders
+
+                let rider_rect: vec4 = (
+                    candidate.collider.pos.x,
+                    candidate.collider.pos.y + candidate.collider.size.y,
+                    candidate.collider.size.x,
+                    1.0
+                );
+                if rect_overlaps(riding_rect, rider_rect) {
+                    //print("found rider");
+                    // Found rider
+                    var exists = false;
+                    for j in 0..riders.length {
+                        if riders[j] == candidate {
+                            exists = true;
+                            break;
+                        }
+                    }
+
+                    if not exists {
+                        riders.push(candidate);
+                    }
+                }
+            }
+
+            return result;
+        }
+        else {
+            // This actor failed the move.
+            return false;
+        }
+    }
+
+    fun move_h(actor: Actor, dx: float) -> bool {
+        move_h_impl(actor, dx, [], true, true);
+    }
+
+    fun move_h_no_riders(actor: Actor, dx: float) -> bool {
+        move_h_impl(actor, dx, [], true, false);
+    }
+
+    fun move_h_impl(actor: Actor, dx: float, banned_orig: DynArray[Actor], move_root: bool, enable_riders: bool) -> bool {
+        
+
+        let col = actor.collider;
+        col.remainder.x += dx;
+
+        var move = round(col.remainder.x);
+
+        if move != 0 {
+            col.remainder.x -= move;
+            let sign = signum(move);
+
+            while move != 0 {
+                var riders: DynArray[Actor] = [];
+                var discovered: DynArray[Actor] = [];
+                var banned = if move_root { banned_orig.clone_shallow() } else { banned_orig }; // Recursive calls push to same array
+                
+                if try_move_h(actor, sign, discovered, riders, banned) {
+                    for i in 0..discovered.length {
+                        discovered[i].collider.pos.x += sign;
+                        banned.push(discovered[i]);
+                    }
+                    move -= sign;
+                    
+                    // Figure out final set of riders and recursively move them
+                    // var final_riders: DynArray[Actor] = [];
+                    if enable_riders {
+                        for i in 0..riders.length {
+                            var is_rider = true;
+                            for j in 0..discovered.length {
+                                if discovered[j] == riders[i] {
+                                    is_rider = false;
+                                    break;
+                                }
+                            }
+
+                            // for j in 0..banned.length {
+                            //     if banned[j] == riders[i] {
+                            //         is_rider = false;
+                            //         break;
+                            //     }
+                            // }
+
+                            if is_rider {
+                                // Handle rider. Ban existing discovered boxes.
+                                move_h_impl(riders[i], sign, [], false, true);
+                                banned.push(riders[i]);
+                            }
+                        }
+                    }
+                }
+                else {
+                    return false;
+                }
+                // chain.push(actor);
+                // let in_way = collide_actors_h(actor, col.pos + (sign, 0), sign, col.size, chain);
+                
+                // var tile = T_EMPTY;
+                // if in_way.is_some() {
+                //     let in_way = in_way.or_panic();
+                //     if not move_h(in_way, sign, chain) {
+                //         tile = T_COLLIDER;
+                //     }
+                // }
+                // chain.pop_or_panic();
+
+                // if tile != T_COLLIDER {
+                //     tile = collide_solids(col.pos + (sign, 0), col.size);
+                // }
+                // if tile == T_JUMP_THROUGH {
+                //     col.descent = true;
+                //     col.seen_wood = true;
+                // }
+                // if tile == T_EMPTY or tile == T_JUMP_THROUGH {
+                //     col.pos.x += sign;
+                //     move -= sign;
+                // }
+                // else {
+                //     return false;
+                // }
+            }
+        }
+
+        true
+    }
+
+    fun collide_check(actor: Actor, pos: vec2) -> bool {
+        let collider = actor.collider;
+
+        if collide_actors_v(actor, pos, collider.size).is_some() {
+            return true;
+        }
+
+        let tile = collide_solids(pos, collider.size);
+        if collider.descent {
+            tile == T_SOLID or tile == T_COLLIDER
+        }
+        else {
+            tile == T_SOLID or tile == T_COLLIDER or tile == T_JUMP_THROUGH
+        }
+    }
+}
+
+fun signum(x: int) -> int {
+    if x > 0 { return 1; }
+    if x < 0 { return -1; }
+    return 0;
+}
+
+fun signumf(x: float) -> int {
+    if x > 0 { return 1; }
+    if x < 0 { return -1; }
+    return 0;
+}
+
+fun abs(x: float) -> float {
+    if x < 0 { -x } else { x }
+}
+
+fun rect_overlaps(a: vec4, b: vec4) -> bool {
+    fun left(x: vec4) -> float { return x.x; }
+    fun right(x: vec4) -> float { return x.x + x.z; }
+    fun top(x: vec4) -> float { return x.y; }
+    fun bottom(x: vec4) -> float { return x.y + x.w; }
+
+    left(a) <= right(b)
+        and right(a) >= left(b)
+        and top(a) <= bottom(b)
+        and bottom(a) >= top(b)
+}
+
+fun rect_overlaps_totally(a: vec4, b: vec4) -> bool {
+    fun left(x: vec4) -> float { return x.x; }
+    fun right(x: vec4) -> float { return x.x + x.z; }
+    fun top(x: vec4) -> float { return x.y; }
+    fun bottom(x: vec4) -> float { return x.y + x.w; }
+
+    left(a) < right(b)
+        and right(a) > left(b)
+        and top(a) < bottom(b)
+        and bottom(a) > top(b)
+}

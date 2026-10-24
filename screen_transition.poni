@@ -1,0 +1,62 @@
+class ScreenTransition {
+    var t: float = 0;
+    var active: bool = false;
+    var waiting_on_world = false;
+
+    var needs_first_load = true;
+
+    fun trigger() {
+        if active { return; }
+        active = true;
+        t = 0;
+    }
+
+    /// Whether we are ready to load the level.
+    fun is_ready() -> bool {
+        return t >= 1;
+    }
+
+    fun load_init() {
+        // Put non-main-menu loading here.
+
+        needs_first_load = false;
+    }
+
+    fun update_dt(dt: float) {
+        if active {
+            if t >= 1.0 {
+                if needs_first_load {
+                    load_init();
+                }
+                if waiting_on_world {
+                    t = 1.0;
+                    return;
+                }
+            }
+            t += dt * 6.0;
+            // We let the world loader deactivatee us for now.
+            if t >= 3 and not waiting_on_world { active = false; }
+        }
+    }
+
+    fun draw() {
+        if active {
+            let color = (#000000ff);
+            let size = screen.target_size;
+            let tl_corner = -screen.target_offset - size / 2;
+            if t <= 1 {
+                let t = ease_out_cubic(t);
+                draw_rectangle(tl_corner, (size.x * t, size.y), color);
+            }
+            else {
+                if t <= 2 {
+                    draw_rectangle(tl_corner, size, color);
+                }
+                else {
+                    let t = ease_in_cubic(t - 2);
+                    draw_rectangle(tl_corner + (size.x * t, 0), (size.x * (1 - t), size.y), color);
+                }
+            }
+        }
+    }
+}

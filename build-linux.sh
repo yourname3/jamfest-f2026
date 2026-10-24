@@ -1,0 +1,1 @@
+TOOLCHAIN=local PLATFORM=linux DIST=.build/linux-dist EXT=.x86_64 ./build-driver.sh

@@ -1,0 +1,1 @@
+TOOLCHAIN=web PLATFORM=web DIST=.build/web-dist DIST_NAME="game" EXT=.wasm ./build-driver.sh

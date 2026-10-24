@@ -1,0 +1,63 @@
+class UpdateSmoothing {
+    var avg_dt: float = 0.003;
+    var accumulator: float = 0;
+    var do_init = true;
+
+    fun compute_dt() -> float {
+        var dt = get_frame_time();
+        // Delta-time smoothing..?
+        if dt > avg_dt * 10.0 {
+            print("large dt: ", dt);
+        }
+        dt = if dt > 0.08 { 0.08 } else { dt };
+        
+        avg_dt += (dt - avg_dt) * 0.03;
+        dt = avg_dt;
+
+        dt
+    }
+
+    fun update() {
+        if do_init {
+            // init_world();
+            do_init = false;
+        }
+
+        // Handle game logic
+        var dt = update_smoothing.compute_dt();
+
+        let actual_dt = if dt > 0.04 { 0.04 } else { dt };
+        
+        accumulator += actual_dt;
+
+        var max_counter: int = 0;
+
+        while accumulator > 0 {
+            let timestep = 0.0166666666667;
+            update_dt(timestep);
+
+            accumulator -= timestep;
+            max_counter += 1;
+
+            // Limit at 16 updates per frame
+            if max_counter >= 16 {
+                break;
+            }
+        }
+
+        // Black background for letter box
+        clear_background((#000f));
+
+        screen.update();
+        screen.draw_bg();
+
+        draw();
+    }
+}
+
+let update_smoothing = new UpdateSmoothing{};
+
+fun update() {
+    update_smoothing.update();
+}
+

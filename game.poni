@@ -1,0 +1,403 @@
+// TODO: Variable initialization order STILL doesn't work in multi-file projects.
+// Keeping these in physics.poni causes a segfault in hot-reload mode..
+let T_EMPTY = 0;
+let T_SOLID = 1;
+let T_JUMP_THROUGH = 2;
+let T_COLLIDER = 3;
+
+let T_SOLID_THIN = 4;
+
+let screen = new Screen {
+    bg_color: (#47a9ffff),
+    target_size: (320, 240)
+};
+
+class Textures {
+    var tiles = load_texture("tex/tiles.png");
+}
+
+class Sounds {}
+
+let tex = { set_default_filter_mode(FILTER_NEAREST); new Textures{} };
+let sound = new Sounds{};
+
+let screen_transition = new ScreenTransition{};
+
+// BUG (?): Can't do thing: Array[StrBuf] = ["", ""]
+
+let level_list: Array[StrBuf] = [
+
+];
+
+let loaded_levels: DynArray[StringLoader] = [];
+
+
+
+let PLAYER_ACTOR_SIZE = (14, 9);
+
+let physics_layer = new StaticTiledLayer {
+    tile_width: 16,
+    tile_height: 16,
+    width: 1,
+    colliders: [],
+    tag: 1
+};
+
+let areas_layer = new StaticTiledLayer {
+    tile_width: 16,
+    tile_height: 16,
+    width: 1,
+    colliders: [],
+    tag: 2
+};
+
+let world = new World {
+    layers: [physics_layer]
+};
+
+let player = new Player {
+    actor: {
+        let result = world.add_actor((0, -40), PLAYER_ACTOR_SIZE);
+        result.collider.moveable_by_actors = false;
+        result
+    }
+};
+
+class CameraController {
+    var x_bound: vec2 = (0, 0);
+    var y_bound: vec2 = (0, 0);
+
+    fun ready_draw(player_pos: vec2) {
+        let min_x = x_bound.0 + screen.target_size.x / 2;
+        let max_x = x_bound.1 - screen.target_size.x / 2;
+
+        let min_y = y_bound.0 + screen.target_size.y / 2;
+        let max_y = y_bound.1 - screen.target_size.y / 2;
+
+        var x = player_pos.x;
+        var y = player_pos.y;
+        if x < min_x { x = min_x; }
+        if x > max_x { x = max_x; }
+        if max_x < min_x {
+            x = (min_x + max_x) / 2;
+        }
+
+        if y < min_y { y = min_y; }
+        if y > max_y { y = max_y; }
+        if max_y < min_y {
+            y = (min_y + max_y) / 2;
+        }
+
+        screen.target_offset = -(x, y);
+
+        // Draw a bordering black rectangle around the entire map.
+        // This is so we don't have to manually set this up in Tiled.
+        //let map = world_loader.cur_map else return;
+        let size = world_loader.map_size * 16;
+        let TILE_DARK_BORDER = (#1c1c1bff);
+        let BORDER_SIZE = 16 * 32;
+        // left and right strips
+        draw_rectangle((x_bound.0 - BORDER_SIZE, -BORDER_SIZE), (BORDER_SIZE, size.y + BORDER_SIZE * 2), TILE_DARK_BORDER);
+        draw_rectangle((x_bound.1, -BORDER_SIZE), (BORDER_SIZE, size.y + BORDER_SIZE * 2), TILE_DARK_BORDER);
+        // top and bottom strips
+        draw_rectangle((-BORDER_SIZE, y_bound.0 - BORDER_SIZE), (size.x + BORDER_SIZE * 2, BORDER_SIZE), TILE_DARK_BORDER);
+        draw_rectangle((-BORDER_SIZE, y_bound.1), (size.x + BORDER_SIZE * 2, BORDER_SIZE), TILE_DARK_BORDER);
+    }
+}
+let camera_controller = new CameraController{};
+
+/// Helper for key just pressed checking due to weird update() system.
+class Key {
+    var was_down: bool = false;
+    var is_down: bool = false;
+    var is_just_pressed: bool = false;
+    let keycode: int;
+
+    fun update() {
+        was_down = is_down;
+        is_down = is_key_down(keycode);
+        is_just_pressed = is_down and not was_down;
+    }
+}
+
+let key_space = new Key { keycode: K_SPACE };
+let key_x = new Key { keycode: K_X };
+let key_r = new Key { keycode: K_R };
+let key_z = new Key { keycode: K_Z };
+let keys = [key_space, key_x, key_r, key_z];
+
+var rescue_horse: Actor? = nil;
+
+class Animation {
+    let frames: Array[int];
+    var frame: int = 0;
+    var frame_duration: float;
+    var accumulator: float = 0;
+
+    fun update_dt(dt: float) -> bool {
+        accumulator += dt;
+        if accumulator >= frame_duration {
+            accumulator -= frame_duration;
+            frame = (frame + 1) % frames.length;
+
+            return true;           
+        }
+        false
+    }
+
+    fun get_frame() -> int { frames[frame] }
+}
+
+fun gravity(y_vel: float, dt: float) -> float {
+    y_vel += dt * 500.0;
+    if y_vel > 200 {
+        y_vel = 200;
+    }
+    y_vel
+}
+
+class Player {
+    var actor: Actor;
+
+    var speed: vec2 = (0, 0);
+    var flip_h: bool = false;
+    var frame: int = 0; // Current animation frame
+
+    let run_anim = new Animation { frames: [1, 2], frame_duration: 0.1 };
+
+    var jump_timer: float = 0;
+    var coyote_time: float = 0;
+
+    fun update_dt(dt: float) {
+        let JUMP_VEL = -190.0;
+        let JUMP_TIMER_MAX = 0.18;
+
+        run_anim.update_dt(dt);
+
+        let on_ground = actor.collider.on_ground; //world.collide_check(actor, actor.collider.pos + (0, 1));
+        let on_ceiling = actor.collider.on_ceiling;//world.collide_check(actor, actor.collider.pos - (0, 1));
+
+        let use_h_frame = if not on_ground {
+            let grav_multiplier = if speed.y > 0 and speed.y < 10 {
+                // Smooth out tips of jumps by reducing gravity
+                0.3
+            } else { 1.0 };
+
+            speed.y = gravity(speed.y, dt * grav_multiplier);
+            frame = if speed.y > 0 { 4 } else { 3 };
+            false
+        }
+        else {
+            coyote_time = dt * 3.2; // Should always be 4 frames I think
+            true
+        };
+
+        if on_ceiling and speed.y < 0 {
+            speed.y = 0;
+        }
+
+        // If we ever bonk, kill the jump.
+        if speed.y >= 0 {
+            jump_timer = 0;
+        }
+
+        if is_key_down(K_LEFT) {
+            speed.x = -100;
+            flip_h = true;
+        }
+        else if is_key_down(K_RIGHT) {
+            speed.x = 100;
+            flip_h = false;
+        }
+        else {
+            speed.x = 0;
+        }
+
+        if use_h_frame {
+            if speed.x != 0 {
+                frame = run_anim.get_frame();
+            }
+            else {
+                frame = 0;
+            }
+        }
+
+        if (key_space.is_just_pressed or key_z.is_just_pressed) and coyote_time > 0 {
+            jump_timer = JUMP_TIMER_MAX;
+        }
+        if coyote_time > 0 {
+            coyote_time -= dt;
+        }
+
+        if jump_timer > 0 {
+            speed.y = JUMP_VEL;
+            jump_timer -= dt;
+
+            if not (key_space.is_down or key_z.is_down) {
+                jump_timer = 0;
+                speed.y *= 0.5;
+            }
+        }
+
+        world.move_h(actor, speed.x * dt);
+        world.move_v(actor, speed.y * dt, true);
+
+        if key_r.is_just_pressed {
+            world_loader.reload();
+        }
+    }
+
+    fun draw() {
+        draw_rectangle(actor.collider.pos, (16, 16), (#ffff))
+    }
+}
+
+class WorldLoader {
+    var pending: StringLoader? = nil;
+    var cur_map: Map? = nil;
+    var pending_for_pull: StrBuf? = nil;
+    var map_size: vec2i = (0, 0);
+    var should_load = false;
+
+    var level_idx: int = 0; //level_list.length - 3;
+    var won: bool = false; // Set when we make the first call to advance_level() this level.
+
+    fun load_world_s(loader: StringLoader?) {
+        pending = loader;
+        should_load = true;
+
+        screen_transition.trigger();
+        screen_transition.waiting_on_world = true;
+    }
+
+    fun load_world(path: StrBuf) {
+        //pending = load_string(path);
+        pending_for_pull = path;
+        should_load = true;
+
+        screen_transition.trigger();
+        screen_transition.waiting_on_world = true;
+    }
+
+    fun reload() {
+        should_load = true;
+        // NOTE: This will not overwrite an advance_level() because we already set should_load in
+        // load_world.
+        screen_transition.trigger();
+        screen_transition.waiting_on_world = true;
+    }
+
+    fun advance_level() {
+        if won { return; }
+        won = true;
+
+        if level_idx + 1 < level_list.length { level_idx += 1; }
+        else {
+            // Last level is a bonus level that wraps back around to the win screen.
+            level_idx = level_list.length - 2;
+        }
+        load_world(level_list[level_idx]);
+        screen_transition.trigger();
+        screen_transition.waiting_on_world = true;
+    }
+
+    fun tick() {
+        if not screen_transition.is_ready() { return; }
+        if pending_for_pull.is_some() {
+            pending = load_string(pending_for_pull.or_panic());
+            pending_for_pull = nil;
+        }
+        if not should_load { return; }
+        
+        let pending_ = pending else return;
+        let data = get_loaded_string(pending_);
+        let data = data else return;
+
+        let map = load_map(data, [{ let x: StrBuf = "../tex/tiles.png"; x }], [tex.tiles]);
+
+        cur_map = map;
+        should_load = false;
+
+        let map = map else return;
+        map_size = get_tile_map_size(map);
+
+        physics_layer.colliders = [];
+        physics_layer.width = map_size.x;
+
+        areas_layer.colliders = [];
+        areas_layer.width = map_size.x;
+        world.actors = [player.actor];
+        world.solids = [];
+
+        screen_transition.waiting_on_world = false;
+
+        won = false;
+
+        camera_controller.x_bound.0 = 0;
+        camera_controller.x_bound.1 = map_size.x * 16;
+        camera_controller.y_bound.0 = 0;
+        camera_controller.y_bound.1 = map_size.y * 16;
+
+        for y in 0..map_size.y {
+            for x in 0..map_size.x {
+                var tile = get_tile_map_tile(map, "main", (x, y));
+                
+                fun map_to_physics(tile: int) -> int {
+                    if tile == -1 or tile == 0 { return T_EMPTY; }
+                    return T_SOLID;
+                }
+
+                physics_layer.colliders.push(map_to_physics(tile));
+            }
+        }
+    }
+
+    fun draw_bg() {
+        let map = cur_map else return;
+        let size = map_size * 16;
+
+        // draw_map(map, "bg", (0, 0, size.x, size.y));
+        // draw_map(map, "bg2", (0, 0, size.x, size.y));
+    }
+
+    fun draw() {
+        let map = cur_map else return;
+        let size = map_size * 16;
+        draw_map(map, "main", (0, 0, size.x, size.y));
+        // draw_map(map, "fg", (0, 0, size.x, size.y));
+    }
+}
+
+let world_loader = new WorldLoader{};
+var debug = 0;
+// var load_all_timer = 2.0;
+
+fun update_dt(dt: float) {
+    // Update keys for is_just_pressed tracking
+    for i in 0..keys.length {
+        keys[i].update();
+    }
+    
+    screen_transition.update_dt(dt);
+    world_loader.tick();
+
+    world.pre_physics_step();
+
+    player.update_dt(dt);
+}
+
+fun draw() {
+    camera_controller.ready_draw((player.actor.collider.pos + (8, 8)));
+    screen.update();
+
+    world_loader.draw_bg();
+    world_loader.draw();
+
+    player.draw();
+
+    screen_transition.draw();
+}
+
+
+
+
