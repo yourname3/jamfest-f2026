@@ -8,7 +8,7 @@ let T_COLLIDER = 3;
 let T_SOLID_THIN = 4;
 
 let screen = new Screen {
-    bg_color: (#47a9ffff),
+    bg_color: (#4d4d4dff),
     target_size: (320, 240)
 };
 
@@ -55,13 +55,7 @@ let world = new World {
     layers: [physics_layer]
 };
 
-let player = new Player {
-    actor: {
-        let result = world.add_actor((0, -40), PLAYER_ACTOR_SIZE);
-        result.collider.moveable_by_actors = false;
-        result
-    }
-};
+let player = new Player {};
 
 class CameraController {
     var x_bound: vec2 = (0, 0);
@@ -155,100 +149,74 @@ fun gravity(y_vel: float, dt: float) -> float {
 }
 
 class Player {
-    var actor: Actor;
-
-    var speed: vec2 = (0, 0);
-    var flip_h: bool = false;
-    var frame: int = 0; // Current animation frame
-
-    let run_anim = new Animation { frames: [1, 2], frame_duration: 0.1 };
-
-    var jump_timer: float = 0;
-    var coyote_time: float = 0;
+    var pos: vec2 = (0, 0);
 
     fun update_dt(dt: float) {
-        let JUMP_VEL = -190.0;
-        let JUMP_TIMER_MAX = 0.18;
+        var vel: vec2 = norm2((
+            if is_key_down(K_LEFT) { -1 } else if is_key_down(K_RIGHT) { 1 } else { 0 },
+            if is_key_down(K_UP) { -1 } else if is_key_down(K_DOWN) { 1 } else { 0 }
+        ));
 
-        run_anim.update_dt(dt);
-
-        let on_ground = actor.collider.on_ground; //world.collide_check(actor, actor.collider.pos + (0, 1));
-        let on_ceiling = actor.collider.on_ceiling;//world.collide_check(actor, actor.collider.pos - (0, 1));
-
-        let use_h_frame = if not on_ground {
-            let grav_multiplier = if speed.y > 0 and speed.y < 10 {
-                // Smooth out tips of jumps by reducing gravity
-                0.3
-            } else { 1.0 };
-
-            speed.y = gravity(speed.y, dt * grav_multiplier);
-            frame = if speed.y > 0 { 4 } else { 3 };
-            false
-        }
-        else {
-            coyote_time = dt * 3.2; // Should always be 4 frames I think
-            true
-        };
-
-        if on_ceiling and speed.y < 0 {
-            speed.y = 0;
-        }
-
-        // If we ever bonk, kill the jump.
-        if speed.y >= 0 {
-            jump_timer = 0;
-        }
-
-        if is_key_down(K_LEFT) {
-            speed.x = -100;
-            flip_h = true;
-        }
-        else if is_key_down(K_RIGHT) {
-            speed.x = 100;
-            flip_h = false;
-        }
-        else {
-            speed.x = 0;
-        }
-
-        if use_h_frame {
-            if speed.x != 0 {
-                frame = run_anim.get_frame();
-            }
-            else {
-                frame = 0;
-            }
-        }
-
-        if (key_space.is_just_pressed or key_z.is_just_pressed) and coyote_time > 0 {
-            jump_timer = JUMP_TIMER_MAX;
-        }
-        if coyote_time > 0 {
-            coyote_time -= dt;
-        }
-
-        if jump_timer > 0 {
-            speed.y = JUMP_VEL;
-            jump_timer -= dt;
-
-            if not (key_space.is_down or key_z.is_down) {
-                jump_timer = 0;
-                speed.y *= 0.5;
-            }
-        }
-
-        world.move_h(actor, speed.x * dt);
-        world.move_v(actor, speed.y * dt, true);
-
-        if key_r.is_just_pressed {
-            world_loader.reload();
-        }
+        pos += vel * dt * 100;
     }
 
     fun draw() {
-        draw_rectangle(actor.collider.pos, (16, 16), (#ffff))
+        //draw_rectangle(pos, pos + (1, 1), (#ffff));
+        draw_texture_flip_frame(tex.tiles, pos, false, false, (16, 0, 16, 16), (#ffff))
     }
 }
+
+class Enemy {
+    var alive: bool = true;
+    var pos: vec2 = (0, 0);
+
+    fun update_dt(dt: float) {
+        let dir = (player.pos - pos);
+        pos += norm2(dir) * 50.0 * dt;
+    }
+
+    fun draw() {
+        draw_texture_flip_frame(tex.tiles, pos, false, false, (32, 0, 16, 16), (#ffff))
+    }
+}
+
+class EnemyList {
+    let enemies: DynArray[Enemy] = [];
+    var alive: int = 0;
+
+    fun spawn() -> Enemy {
+        if alive < enemies.length {
+            alive += 1;
+            enemies[alive - 1].alive = true;
+            enemies[alive - 1]
+        }
+        else {
+            let result = new Enemy{};
+            enemies.push(result);
+            result
+        }
+    }
+
+    fun spawn_random_pos(count: int) {
+        for i in 0..count {
+            let e = spawn();
+            e.pos = (randf_range(-1000, 1000), randf_range(-1000, 1000));
+        }
+    }
+
+    fun iter() -> fun() -> Enemy? {
+        var i = 0;
+
+        fun() -> Enemy? {
+            if i >= alive { return nil; }
+            var next = i;
+            i += 1;
+            enemies[next]
+        }
+    }
+}
+
+let enemies = new EnemyList{};
 
 class WorldLoader {
     var pending: StringLoader? = nil;
@@ -332,7 +300,7 @@ class WorldLoader {
 
         areas_layer.colliders = [];
         areas_layer.width = map_size.x;
-        world.actors = [player.actor];
+        world.actors = [];
         world.solids = [];
 
         screen_transition.waiting_on_world = false;
@@ -379,7 +347,8 @@ class WorldLoader {
 let world_loader = new WorldLoader{};
 
 fun initialize() {
-    world_loader.load_world(level_list[world_loader.level_idx]);
+    //world_loader.load_world(level_list[world_loader.level_idx]);
+    enemies.spawn_random_pos(200);
 }
 
 fun update_dt(dt: float) {
@@ -389,19 +358,28 @@ fun update_dt(dt: float) {
     }
     
     screen_transition.update_dt(dt);
-    world_loader.tick();
+    //world_loader.tick();
 
-    world.pre_physics_step();
+    //world.pre_physics_step();
+
+    for e in enemies.iter() {
+        e.update_dt(dt);
+    }
 
     player.update_dt(dt);
 }
 
 fun draw() {
-    camera_controller.ready_draw((player.actor.collider.pos + (8, 8)));
+    // camera_controller.ready_draw((player.actor.collider.pos + (8, 8)));
+    screen.target_offset = -player.pos;
     screen.update();
 
-    world_loader.draw_bg();
-    world_loader.draw();
+    //world_loader.draw_bg();
+    //world_loader.draw();
+
+    for e in enemies.iter() {
+        e.draw();
+    }
 
     player.draw();
 
