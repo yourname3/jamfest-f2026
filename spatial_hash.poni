@@ -5,6 +5,8 @@ class SpatialHash {
     var aabb: vec4i = (0, 0, 0, 0);
     let cell_size: float;
 
+    let type: int;
+
     fun initialize() -> bool {
         let new_aabb = (-1, -1, 1, 1);
         resize(new_aabb);
@@ -15,13 +17,16 @@ class SpatialHash {
     // Other TODO: Somehow this doesn't even compile. What? Oh, this poni_init thing?
     let _flag = initialize();
 
-    
-
     fun get_object_pos(obj: int) -> vec2 {
-        // Don't want to use function pointers here due to i t
+        // Don't want to use function pointers here due to it
         // being annoying with hot reloading. Instead, just swap between
         // our various arrays based on a flag.
-        return enemies.enemies[obj].pos;
+        if type == 0 {
+            enemies.enemies[obj].pos
+        }
+        else {
+            bullets.bullets[obj].pos
+        }
     }
 
     /// Maps a position with an AABB to an index.

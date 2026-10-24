@@ -161,12 +161,13 @@ class Player {
         pos += vel * dt * 100;
 
         bullet_timer -= dt;
-        while bullet_timer <= 0 and false {
-            //bullet_timer += 0.3; //0.05;
+        while bullet_timer <= 0 {
+            bullet_timer += 0.3; //0.05;
             var b = bullets.spawn();
-            b.pos = pos;
+            
             b.vel = norm2((randf_range(-1, 1), randf_range(-1, 1))) * 110.0;
             b.lifetime = 1.2;
+            b.set_pos(pos);
         }
     }
 
@@ -187,6 +188,7 @@ class Enemy {
 
     /// For spatial hash.
     var last_cell: vec2i = (0, 0);
+    var health: int = 0;
 
     fun update_dt(dt: float) {
         let dir = (player.pos - pos);
@@ -204,18 +206,25 @@ class Enemy {
 
         pos += vel * dt;
 
-        // TODO: Find bullets using a spatial hash or something
-        for i in 0..bullets.alive {
-            let dif = pos - bullets.bullets[i].pos;
-            if dot2(dif, dif) < 6 * 6 {
-                enemies.kill(self);
-            }
-        }
-
         repel_with_others();
 
         last_cell = enemies.hash.update(perm_idx, last_cell);
+
+        bullets.hash.find_all_in_radius(pos, 12, query_output_buffer);
+
+        for i in 0..query_output_buffer.length {
+            let bullet = bullets.bullets_perm[query_output_buffer[i]];
+
+            // Take one damage... or something
+            health -= 1;
+        }
+
+        if health <= 0 {
+            enemies.kill(self);
+        }
     }
+
+
 
     fun draw() {
         draw_texture_flip_frame(tex.tiles, pos, false, false, (32, 0, 16, 16), (#ffff))
@@ -265,7 +274,7 @@ let query_output_buffer: DynArray[int] = []; // Used for spatial hash queries
 class EnemyList {
     let enemies: DynArray[Enemy] = [];
     let enemies_perm: DynArray[Enemy] = [];
-    let hash: SpatialHash = new SpatialHash { cell_size: CELL_SIZE };
+    let hash: SpatialHash = new SpatialHash { cell_size: CELL_SIZE, type: 0 };
     var alive: int = 0;
 
     fun spawn() -> Enemy {
@@ -291,6 +300,7 @@ class EnemyList {
         for i in 0..count {
             let e = spawn();
             e.pos = (randf_range(-1000, 1000), randf_range(-1000, 1000));
+            e.health = 1;
         }
     }
 
@@ -337,10 +347,22 @@ class Bullet {
     var pos: vec2 = (0, 0);
     var vel: vec2 = (0, 0);
     var lifetime: float = 0.0;
+    let perm_idx: int;
+    var last_cell: vec2i = (0, 0);
+
+    fun set_pos(pos: vec2) {
+        self.pos = pos;
+        last_cell = bullets.hash.update(self.perm_idx, last_cell);
+        //print(last_cell);
+    }
 
     fun update_dt(dt: float) {
         pos += vel * dt;
         lifetime -= dt;
+
+        last_cell = bullets.hash.update(self.perm_idx, last_cell);
+        //print(last_cell);
+
         if lifetime <= 0 {
             bullets.kill(self);
         }
@@ -353,10 +375,12 @@ class Bullet {
 
 class BulletList {
     let bullets: DynArray[Bullet] = [];
+    let bullets_perm: DynArray[Bullet] = [];
+    let hash: SpatialHash = new SpatialHash { cell_size: CELL_SIZE, type: 1 };
     var alive: int = 0;
 
     fun spawn() -> Bullet {
-        if alive < bullets.length {
+        let bullet = if alive < bullets.length {
             alive += 1; //print("inc recycle ", alive);
             bullets[alive - 1].alive = true;
             bullets[alive - 1].idx = alive - 1;
@@ -364,10 +388,14 @@ class BulletList {
         }
         else {
             alive += 1; //print("inc new ", alive);
-            let result = new Bullet { idx: bullets.length };
+            let result = new Bullet { idx: bullets.length, perm_idx: bullets_perm.length };
             bullets.push(result);
+            bullets_perm.push(result);
             result
-        }
+        };
+
+        bullet.last_cell = hash.add(bullet.perm_idx);
+        bullet
     }
 
     fun update_dt(dt: float) {
@@ -399,6 +427,8 @@ class BulletList {
         b.idx = alive - 1;
         b.alive = false;
         alive -= 1;
+
+        b.last_cell = hash.remove(b.perm_idx, b.last_cell);
 
         //print("dec -> ", alive);
     }
