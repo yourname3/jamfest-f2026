@@ -181,9 +181,23 @@ class Enemy {
     var alive: bool = true;
     var pos: vec2 = (0, 0);
 
+    var vel: vec2 = (0, 0);
+
     fun update_dt(dt: float) {
         let dir = (player.pos - pos);
-        pos += norm2(dir) * 50.0 * dt;
+        let desired_vel = norm2(dir) * 50.0;
+
+        var accel = desired_vel - vel;
+        var max_accel = len2(accel);
+        accel = norm2(accel) * 400 * dt;
+        if len2(accel) > max_accel {
+            vel = desired_vel;
+        }
+        else {
+            vel += accel;
+        }
+
+        pos += vel * dt;
 
         // TODO: Find bullets using a spatial hash or something
         for i in 0..bullets.alive {
@@ -206,9 +220,9 @@ class Enemy {
         if len_square > 128 * 128 {
             return (0, 0);
         }
-        let strength = 0.009 / (1 + 0.0007 * len_square);
+        let strength = 0.5 / (1 + 0.0007 * len_square);
 
-        dir * -strength
+        norm2(dir) * -strength
     }
 
     fun repel_with_others() {
@@ -223,6 +237,7 @@ class Enemy {
         }
 
         pos += offset;
+        //vel += offset * 20;
     }
 }
 
