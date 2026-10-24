@@ -161,8 +161,8 @@ class Player {
         pos += vel * dt * 100;
 
         bullet_timer -= dt;
-        while bullet_timer <= 0 {
-            bullet_timer += 0.05;
+        while bullet_timer <= 0 and false {
+            //bullet_timer += 0.3; //0.05;
             var b = bullets.spawn();
             b.pos = pos;
             b.vel = norm2((randf_range(-1, 1), randf_range(-1, 1))) * 110.0;
@@ -192,10 +192,37 @@ class Enemy {
                 enemies.kill(self);
             }
         }
+
+        repel_with_others();
     }
 
     fun draw() {
         draw_texture_flip_frame(tex.tiles, pos, false, false, (32, 0, 16, 16), (#ffff))
+    }
+
+    fun compute_repel_strength(enemy: Enemy) -> vec2 {
+        let dir = enemy.pos - pos;
+        let len_square = dot2(dir, dir);
+        if len_square > 128 * 128 {
+            return (0, 0);
+        }
+        let strength = 0.009 / (1 + 0.0007 * len_square);
+
+        dir * -strength
+    }
+
+    fun repel_with_others() {
+        var offset: vec2 = (0, 0);
+
+        // TODO: Use spatial hash to find candidates.
+        for i in 0..enemies.alive {
+            let enemy = enemies.enemies[i];
+            if enemy != self {
+                offset += compute_repel_strength(enemy);
+            }
+        }
+
+        pos += offset;
     }
 }
 
@@ -492,6 +519,13 @@ fun draw() {
     // camera_controller.ready_draw((player.actor.collider.pos + (8, 8)));
     screen.target_offset = -player.pos;
     screen.update();
+
+    for i in 0..32 {
+        for j in 0..32 {
+            if i % 2 != j % 2 { continue; }
+            draw_rectangle((i * 16, j * 16), (16, 16), (#c8c8c8ff));
+        }
+    }
 
     //world_loader.draw_bg();
     //world_loader.draw();
