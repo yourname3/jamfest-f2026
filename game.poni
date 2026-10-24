@@ -150,6 +150,7 @@ fun gravity(y_vel: float, dt: float) -> float {
 
 class Player {
     var pos: vec2 = (0, 0);
+    var bullet_timer: float = 0;
 
     fun update_dt(dt: float) {
         var vel: vec2 = norm2((
@@ -158,6 +159,15 @@ class Player {
         ));
 
         pos += vel * dt * 100;
+
+        bullet_timer -= dt;
+        while bullet_timer <= 0 {
+            bullet_timer += 0.2;
+            var b = bullets.spawn();
+            b.pos = pos;
+            b.vel = norm2((randf_range(-1, 1), randf_range(-1, 1))) * 110.0;
+            b.lifetime = 0.4;
+        }
     }
 
     fun draw() {
@@ -167,6 +177,7 @@ class Player {
 }
 
 class Enemy {
+    var idx: int;
     var alive: bool = true;
     var pos: vec2 = (0, 0);
 
@@ -188,10 +199,12 @@ class EnemyList {
         if alive < enemies.length {
             alive += 1;
             enemies[alive - 1].alive = true;
+            enemies[alive - 1].idx = alive - 1;
             enemies[alive - 1]
         }
         else {
-            let result = new Enemy{};
+            alive += 1;
+            let result = new Enemy { idx: enemies.length };
             enemies.push(result);
             result
         }
@@ -217,6 +230,81 @@ class EnemyList {
 }
 
 let enemies = new EnemyList{};
+
+class Bullet {
+    var idx: int;
+    var alive: bool = true;
+    var pos: vec2 = (0, 0);
+    var vel: vec2 = (0, 0);
+    var lifetime: float = 0.0;
+
+    fun update_dt(dt: float) {
+        pos += vel * dt;
+        lifetime -= dt;
+        if lifetime <= 0 {
+            bullets.kill(self);
+        }
+    }
+
+    fun draw() {
+        draw_texture_flip_frame(tex.tiles, pos, false, false, (48, 0, 16, 16), (#ffff))
+    }
+}
+
+class BulletList {
+    let bullets: DynArray[Bullet] = [];
+    var alive: int = 0;
+
+    fun spawn() -> Bullet {
+        if alive < bullets.length {
+            alive += 1; //print("inc recycle ", alive);
+            bullets[alive - 1].alive = true;
+            bullets[alive - 1].idx = alive - 1;
+            bullets[alive - 1]
+        }
+        else {
+            alive += 1; //print("inc new ", alive);
+            let result = new Bullet { idx: bullets.length };
+            bullets.push(result);
+            result
+        }
+    }
+
+    fun update_dt(dt: float) {
+        for i in 0..alive {
+            bullets[i].update_dt(dt);
+        }
+    }
+
+    fun draw() {
+        for i in 0..alive {
+            bullets[i].draw();
+        }
+    }
+
+    fun kill(b: Bullet) {
+        if not b.alive {
+            return;
+        }
+
+        //print("kill ", b.idx);
+
+        //print("swapping ", alive - 1, " (", bullets[alive - 1].idx, ") with ", b.idx, " - ", (bullets[b.idx] == b));
+        var tmp = bullets[alive - 1];
+        bullets[alive - 1] = bullets[b.idx];
+        bullets[b.idx] = tmp;
+
+        tmp.idx = b.idx;
+
+        b.idx = alive - 1;
+        b.alive = false;
+        alive -= 1;
+
+        //print("dec -> ", alive);
+    }
+}
+
+let bullets = new BulletList{};
 
 class WorldLoader {
     var pending: StringLoader? = nil;
@@ -366,6 +454,8 @@ fun update_dt(dt: float) {
         e.update_dt(dt);
     }
 
+    bullets.update_dt(dt);
+
     player.update_dt(dt);
 }
 
@@ -380,6 +470,8 @@ fun draw() {
     for e in enemies.iter() {
         e.draw();
     }
+
+    bullets.draw();
 
     player.draw();
 
