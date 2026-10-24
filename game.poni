@@ -713,10 +713,25 @@ fun draw() {
     player.draw();
 
 
-
+    draw_ui();
     //screen_transition.draw();
 }
 
+fun draw_ui() {
+    let size = screen.target_size;
+    let top_left = -screen.target_offset - size / 2;
 
+    let bar_offset = size.y - 18;
+    draw_rectangle(top_left + (0, bar_offset), (size.x, size.y - bar_offset), (#000f));
+
+    draw_line(top_left + (0, 0), top_left + (size.x, 0), 2, colors.player);
+    draw_line(top_left + (0, size.y), top_left + (size.x, size.y), 2, colors.player);
+    draw_line(top_left + (0, 0), top_left + (0, size.y), 2, colors.player);
+    draw_line(top_left + (size.x, 0), top_left + (size.x, size.y), 2, colors.player);
+
+    
+    draw_line(top_left + (0, bar_offset), top_left + (size.x, bar_offset), 1, colors.player);
+
+}
 
 
