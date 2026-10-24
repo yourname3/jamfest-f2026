@@ -26,7 +26,7 @@ let screen_transition = new ScreenTransition{};
 // BUG (?): Can't do thing: Array[StrBuf] = ["", ""]
 
 let level_list: Array[StrBuf] = [
-
+    str("level/test.tmj")
 ];
 
 let loaded_levels: DynArray[StringLoader] = [];
@@ -125,8 +125,6 @@ let key_x = new Key { keycode: K_X };
 let key_r = new Key { keycode: K_R };
 let key_z = new Key { keycode: K_Z };
 let keys = [key_space, key_x, key_r, key_z];
-
-var rescue_horse: Actor? = nil;
 
 class Animation {
     let frames: Array[int];
@@ -262,6 +260,9 @@ class WorldLoader {
     var level_idx: int = 0; //level_list.length - 3;
     var won: bool = false; // Set when we make the first call to advance_level() this level.
 
+    let external_tileset = load_string("level/tiles.tsj");
+    let external_tileset_name: StrBuf = "tiles.tsj";
+
     fun load_world_s(loader: StringLoader?) {
         pending = loader;
         should_load = true;
@@ -313,7 +314,12 @@ class WorldLoader {
         let data = get_loaded_string(pending_);
         let data = data else return;
 
-        let map = load_map(data, [{ let x: StrBuf = "../tex/tiles.png"; x }], [tex.tiles]);
+        let external_tileset = get_loaded_string(external_tileset) else return;
+        print(external_tileset);
+
+        let map = load_map_with_tilesets(data,
+            [{ let x: StrBuf = "../tex/tiles.png"; x }], [tex.tiles],
+            [external_tileset_name], [external_tileset]);
 
         cur_map = map;
         should_load = false;
@@ -341,9 +347,11 @@ class WorldLoader {
         for y in 0..map_size.y {
             for x in 0..map_size.x {
                 var tile = get_tile_map_tile(map, "main", (x, y));
+
+                print(tile);
                 
                 fun map_to_physics(tile: int) -> int {
-                    if tile == -1 or tile == 0 { return T_EMPTY; }
+                    if tile == -1 { return T_EMPTY; }
                     return T_SOLID;
                 }
 
@@ -369,8 +377,10 @@ class WorldLoader {
 }
 
 let world_loader = new WorldLoader{};
-var debug = 0;
-// var load_all_timer = 2.0;
+
+fun initialize() {
+    world_loader.load_world(level_list[world_loader.level_idx]);
+}
 
 fun update_dt(dt: float) {
     // Update keys for is_just_pressed tracking
@@ -395,7 +405,7 @@ fun draw() {
 
     player.draw();
 
-    screen_transition.draw();
+    //screen_transition.draw();
 }
 
 

@@ -19,7 +19,7 @@ class UpdateSmoothing {
 
     fun update() {
         if do_init {
-            // init_world();
+            initialize();
             do_init = false;
         }
 
