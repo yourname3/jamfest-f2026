@@ -57,10 +57,30 @@ let world = new World {
 
 let player = new Player {};
 
+class ExpList {
+    let all: DynArray[vec2] = [];
+    var earned: int = 0;
+
+    fun add(pos: vec2) {
+        all.push(pos);
+    }
+
+    fun consume(idx: int) {
+        let tmp = all[all.length - 1];
+        all[idx] = tmp;
+        all.pop_or_panic();
+
+        earned += 1;
+    }
+}
+
+let exp = new ExpList{};
+
 class Colors {
     var player: vec4 = (1, 1, 1, 1);
     var enemy: vec4 = (1, 1, 1, 1);
     var bg: vec4 = (1, 1, 1, 1);
+    var exp: vec4 = (1, 1, 1, 1);
 
     fun conv(rgb: vec3) -> vec4 {
         // TODO: Swizzling would be very helpful.
@@ -74,6 +94,9 @@ class Colors {
 
         var hsv = (t, 1.0, 0.85);
         player = conv(hsv_to_rgb(hsv));
+
+        exp = conv(hsv_to_rgb(hsv + (0.1, 0, -0.1)));
+
         hsv.0 += 0.5;
         enemy = conv(hsv_to_rgb(hsv));
 
@@ -196,6 +219,19 @@ class Player {
             b.lifetime = 1.2;
             b.set_pos(pos);
         }
+
+
+        var i = 0;
+        while i < exp.all.length {
+            // Repeatedly check the same index due to the way consuming works.
+            while i < exp.all.length and {
+                let dif = exp.all[i] - pos;
+                dot2(dif, dif) < 8 * 8
+            } {
+                exp.consume(i);
+            } 
+            i += 1;
+        }
     }
 
     fun draw() {
@@ -254,6 +290,7 @@ class Enemy {
 
         if health <= 0 {
             enemies.kill(self);
+            exp.add(pos);
         }
     }
 
@@ -333,7 +370,7 @@ class EnemyList {
         for i in 0..count {
             let e = spawn();
             e.pos = (randf_range(-1000, 1000), randf_range(-1000, 1000));
-            e.health = 3;
+            e.health = 1;
         }
     }
 
@@ -582,6 +619,7 @@ class WorldLoader {
         camera_controller.x_bound.1 = map_size.x * 16;
         camera_controller.y_bound.0 = 0;
         camera_controller.y_bound.1 = map_size.y * 16;
+    var t = 0.0;
 
         for y in 0..map_size.y {
             for x in 0..map_size.x {
@@ -659,6 +697,10 @@ fun draw() {
         }
     }
 
+    for i in 0..exp.all.length {
+        draw_texture_flip_frame(tex.tiles, exp.all[i], false, false, (5 * 16, 1 * 16, 16, 16), colors.exp);
+    }
+
     //world_loader.draw_bg();
     //world_loader.draw();
 
@@ -669,6 +711,8 @@ fun draw() {
     bullets.draw();
 
     player.draw();
+
+
 
     //screen_transition.draw();
 }
