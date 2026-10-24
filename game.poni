@@ -60,6 +60,7 @@ let player = new Player {};
 class Colors {
     var player: vec4 = (1, 1, 1, 1);
     var enemy: vec4 = (1, 1, 1, 1);
+    var bg: vec4 = (1, 1, 1, 1);
 
     fun conv(rgb: vec3) -> vec4 {
         // TODO: Swizzling would be very helpful.
@@ -75,6 +76,9 @@ class Colors {
         player = conv(hsv_to_rgb(hsv));
         hsv.0 += 0.5;
         enemy = conv(hsv_to_rgb(hsv));
+
+        hsv.0 += 0.25;
+        bg = conv(hsv_to_rgb(hsv * (1, 1, 0.3)));
     }
 }
 let colors = new Colors{};
@@ -619,8 +623,11 @@ fun draw() {
 
     for i in 0..32 {
         for j in 0..32 {
-            if i % 2 != j % 2 { continue; }
-            draw_rectangle((i * 16, j * 16), (16, 16), (#c8c8c8ff));
+            //if i % 2 != j % 2 { continue; }
+            let tile = (i + j) % 4;
+            let tile = ((4, 0) + tile) * 16;
+            draw_texture_flip_frame(tex.tiles, (i, j) * 16, false, false, (tile.0, tile.1, 16, 16), colors.bg);
+            //draw_rectangle((i * 16, j * 16), (16, 16), (#c8c8c8ff));
         }
     }
 
