@@ -22,10 +22,10 @@ class SpatialHash {
         // being annoying with hot reloading. Instead, just swap between
         // our various arrays based on a flag.
         if type == 0 {
-            enemies.enemies[obj].pos
+            enemies.enemies_perm[obj].pos
         }
         else {
-            bullets.bullets[obj].pos
+            bullets.bullets_perm[obj].pos
         }
     }
 
@@ -111,6 +111,10 @@ class SpatialHash {
     fun update(obj: int, prev_cell: vec2i) -> vec2i {
         let pos = get_object_pos(obj);
         let pos_i = floor2(pos / cell_size);
+
+        // if type == 1 {
+        //     print("updating: ", prev_cell, " -> ", pos_i);
+        // }
 
         // TODO: vec2i comparison (==) doesn't work...
         if pos_i.x == prev_cell.x and pos_i.y == prev_cell.y {
