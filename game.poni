@@ -27,6 +27,11 @@ class Sounds {
         volume: 0.3,
     };
 
+    let hit_player = new SoundNormal {
+        sound: load_sound("sound/Hit23_player.wav"),
+        volume: 0.8,
+    };
+
     let exp = new SoundAccumulator {
         sound: load_sound("sound/Pickup13.wav"),
         volume: 0.2,
@@ -469,6 +474,8 @@ class Player {
                 impulse = norm2(pos - enem.pos) * 250;
                 invince_timer = 2.0;
                 health -= 1;
+
+                sound.hit_player.play();
             }
         }
         else {
@@ -866,7 +873,7 @@ let bullets = new BulletList{};
 fun initialize() {
     //world_loader.load_world(level_list[world_loader.level_idx]);
     // enemies.spawn_random_pos(200);
-    play_sound_looping(sound.music);
+    //play_sound_looping(sound.music);
     //play_sound_looping(sound.music_menu);
 }
 
