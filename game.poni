@@ -52,6 +52,13 @@ class Sounds {
         volume: 0.2,
     };
 
+    let button = new SoundNormal { sound: load_sound("sound/Blip11.wav"), volume: 0.4 };
+    let button_hover = new SoundNormal { sound: load_sound("sound/Blip10.wav"), volume: 0.3 };
+
+    let level_up = new SoundNormal { sound: load_sound("sound/levelup.wav"), volume: 0.2 };
+    let win = new SoundNormal { sound: load_sound("sound/win.wav"), volume: 0.2 };
+    let lose = new SoundNormal { sound: load_sound("sound/lose.wav"), volume: 0.2 };
+
     let music = load_sound("music/music.ogg");
     let music_menu = load_sound("music/music_menu.ogg");
 
@@ -75,7 +82,7 @@ class SoundNormal {
 
 class SoundAccumulator {
     var queued: int = 0;
-    let queued_max: int = 3;
+    let queued_max: int = 1;
 
     var sound: Sound;
     var volume: float = 1.0;
@@ -433,6 +440,8 @@ class Player {
                 weapon.which = 3;
             }
 
+            sound.level_up.play();
+
             // var upgrades = randi_range(min_upgrades, max_upgrades);
             // if upgrades > max_upgrades { upgrades = max_upgrades };
             weapon.generate_upgrades(min_upgrades);
@@ -449,6 +458,7 @@ class Player {
 
         if exp.earned_total >= EXP_TO_WIN and not game_won_cont {
             game_state = GS_WIN;
+            sound.win.play();
         }
 
         if invince_timer <= 0 {
@@ -465,8 +475,9 @@ class Player {
             invince_timer -= dt;
         }
 
-        if health <= 0 {
+        if health <= 0 and game_state == GS_GAME {
             game_state = GS_FAIL;
+            sound.lose.play();
         }
     }
 
@@ -1086,10 +1097,10 @@ class Button {
     fun update(dt: float) -> bool {
         var mouse = screen.mouse() + screen.target_size / 2 + screen.target_offset;
         var pressed_this_frame = false;
+        let was_hovered = hovered;
 
         hovered = false;
         var mouse_in_rect = in_rect(mouse, pos, (16 * 3, 16));
-        //print(mouse, " ", pos);
 
         let disabled = button_disabled();
 
@@ -1109,13 +1120,17 @@ class Button {
             // Only call the callback if we're still on the button when we release it
             if mouse_in_rect {
                 if not disabled {
-                    // TODO: play sound.
+                    sound.button.play();
                     pressed_this_frame = true;
                 }
             }
 
             // Either way, we're no longer pressed on.
             mouse_pressed_on = false;
+        }
+
+        if not pressed_this_frame and (hovered and not was_hovered) {
+            sound.button_hover.play();
         }
 
         pressed_this_frame
