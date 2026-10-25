@@ -52,6 +52,9 @@ class Sounds {
         volume: 0.3,
     };
 
+    let music = load_sound("music/music.ogg");
+    let music_menu = load_sound("music/music_menu.ogg");
+
     let accum = [exp];
     fun update_post() {
         for i in 0..accum.length {
@@ -373,6 +376,7 @@ class Player {
         impulse = (0, 0);
 
         weapon.which = 0;
+        weapon.timer = 1.5; // Initial delay when game loads
         weapon.clear_upgrades();
     }
 
@@ -845,6 +849,8 @@ let bullets = new BulletList{};
 fun initialize() {
     //world_loader.load_world(level_list[world_loader.level_idx]);
     // enemies.spawn_random_pos(200);
+    play_sound_looping(sound.music);
+    //play_sound_looping(sound.music_menu);
 }
 
 fun reset_game() {
@@ -854,6 +860,9 @@ fun reset_game() {
     exp.reset();
 
     game_won_cont = false;
+
+    stop_sound(sound.music);
+    play_sound_looping(sound.music);
 }
 
 let GS_MENU = 0;
@@ -872,6 +881,11 @@ fun update_dt(dt: float) {
     // print(enemies.hash.aabb);
     // print(bullets.hash.aabb);
     // print(player.pos);
+
+    let music_volume: float = 0.8;
+
+    set_sound_volume(sound.music, music_volume * (1.0 - menu_lerp));
+    //set_sound_volume(sound.music_menu, music_volume * menu_lerp);
 
     colors.update_dt(dt);
     
