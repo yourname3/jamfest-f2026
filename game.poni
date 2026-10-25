@@ -895,10 +895,29 @@ fun reset_game() {
     play_sound_looping(sound.music);
 }
 
+/// Helper for key just pressed checking due to weird update() system.
+class Key {
+    var was_down: bool = false;
+    var is_down: bool = false;
+    var is_just_pressed: bool = false;
+    let keycode: int;
+
+    fun update() {
+        was_down = is_down;
+        is_down = is_key_down(keycode);
+        is_just_pressed = is_down and not was_down;
+    }
+}
+
+let key_esc = new Key { keycode: K_ESCAPE };
+let key_p = new Key { keycode: K_P };
+let keys = [key_esc, key_p];
+
 let GS_MENU = 0;
 let GS_GAME = 1;
 let GS_WIN  = 2;
 let GS_FAIL = 3;
+let GS_PAUSE = 4;
 var game_state: int = GS_MENU;
 
 var game_won_cont: bool = false;
@@ -908,6 +927,10 @@ var menu_lerp: float = 1.0;
 var menu_lerp_t: float = 1.0;
 
 fun update_dt(dt: float) {
+    // Update keys for is_just_pressed tracking
+    for i in 0..keys.length {
+        keys[i].update();
+    }
     // print(enemies.hash.aabb);
     // print(bullets.hash.aabb);
     // print(player.pos);
@@ -940,6 +963,10 @@ fun update_dt(dt: float) {
 
         menu_lerp_t = clampf(menu_lerp_t - 2.0 * dt, 0, 1);
         menu_lerp = ease_out_cubic(menu_lerp_t);
+
+        if key_esc.is_just_pressed or key_p.is_just_pressed {
+            game_state = GS_PAUSE;
+        }
     }
     else {
         if game_state == GS_MENU {
@@ -964,6 +991,17 @@ fun update_dt(dt: float) {
             }
             if button_done.update(dt) {
                 game_state = GS_MENU;
+            }
+        }
+        if game_state == GS_PAUSE {
+            if button_continue.update(dt) {
+                game_state = GS_GAME; // No reset, but also no game_win_cont
+            }
+            if button_menu.update(dt) {
+                game_state = GS_MENU;
+            }
+            if key_esc.is_just_pressed or key_p.is_just_pressed {
+                game_state = GS_GAME;
             }
         }
         menu_lerp_t = clampf(menu_lerp_t + 2.0 * dt, 0, 1);
@@ -1224,5 +1262,14 @@ fun draw_menu() {
 
         button_continue.draw(top_left);
         button_done.draw(top_left);
+    }
+    else if game_state == GS_PAUSE {
+        let menu_size = (3, 1) * 16;
+        let pos = top_left + (size - menu_size) / 2;
+        draw_texture_flip_frame(tex.tiles, pos, false, false,
+            (3 * 16, 12 * 16, menu_size.x, menu_size.y), colors.player);
+
+        button_continue.draw(top_left);
+        button_menu.draw(top_left);
     }
 }
