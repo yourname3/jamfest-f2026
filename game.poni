@@ -16,7 +16,74 @@ class Textures {
     var tiles = load_texture("tex/tiles.png");
 }
 
-class Sounds {}
+class Sounds {
+    let kill_carrot = new SoundNormal {
+        sound: load_sound("sound/Boom11.wav"),
+        volume: 0.3,
+    };
+
+    let exp = new SoundAccumulator {
+        sound: load_sound("sound/Pickup13.wav"),
+        volume: 0.3,
+    };
+
+    let shoot_base = new SoundNormal {
+        sound: load_sound("sound/Shoot3_base.wav"),
+        volume: 0.3,
+    };
+
+    let shoot_nova = new SoundNormal {
+        sound: load_sound("sound/Shoot4_nova.wav"),
+        volume: 0.3,
+    };
+
+    let shoot_rapid = new SoundNormal {
+        sound: load_sound("sound/Shoot1_rapid.wav"),
+        volume: 0.1,
+    };
+
+    let shoot_shotgun = new SoundNormal {
+        sound: load_sound("sound/Shoot5_shot.wav"),
+        volume: 0.3,
+    };
+
+    let accum = [exp];
+    fun update_post() {
+        for i in 0..accum.length {
+            accum[i].update_post();
+        }
+    }
+}
+
+class SoundNormal {
+    var sound: Sound;
+    var volume: float = 1.0;
+
+    fun play() {
+        play_sound_once(sound);
+        set_sound_volume(sound, volume);
+    }
+}
+
+class SoundAccumulator {
+    var queued: int = 0;
+    let queued_max: int = 3;
+
+    var sound: Sound;
+    var volume: float = 1.0;
+
+    fun play() {
+        queued += 1;
+        if queued > queued_max { queued = queued_max; }
+    }
+    fun update_post() {
+        if queued > 0 {
+            play_sound_once(sound);
+            set_sound_volume(sound, volume);
+            queued -= 1;
+        }
+    }
+}
 
 let tex = { set_default_filter_mode(FILTER_NEAREST); new Textures{} };
 let sound = new Sounds{};
@@ -70,6 +137,9 @@ class ExpList {
         let tmp = all[all.length - 1];
         all[idx] = tmp;
         all.pop_or_panic();
+
+        sound.exp.play();
+        //set_sound_volume(sound.exp, 0.3);
 
         earned += 1;
         earned_total += 1;
@@ -260,6 +330,7 @@ class Weapon {
 
     fun weapon_basic() {
         let streams = 1 + up_amount;
+        if timer <= 0 { sound.shoot_base.play(); }
         while timer <= 0 {
             timer += 0.36;
             for i in 0..streams {
@@ -275,6 +346,8 @@ class Weapon {
     }
 
     fun weapon_shotgun() {
+        if timer <= 0 { sound.shoot_shotgun.play(); }
+
         while timer <= 0 {
             timer += 0.8;
             let extra_dev: float = (up_amount + 1);
@@ -286,6 +359,8 @@ class Weapon {
     }
 
     fun weapon_rapid() {
+        if timer <= 0 { sound.shoot_rapid.play(); }
+
         while timer <= 0 {
             timer += 0.16;
             let extra_dev: float = (up_amount + 1);
@@ -302,6 +377,8 @@ class Weapon {
     }
 
     fun weapon_nova() {
+        if timer <= 0 { sound.shoot_nova.play(); }
+
         while timer <= 0 {
             timer += 2.4;
             for i in -24..24 {
@@ -512,7 +589,10 @@ class Enemy {
 
         if health <= 0 or dot2(dir, dir) > 1000 * 1000 {
             enemies.kill(self);
-            if health <= 0 { exp.add(pos); }
+            if health <= 0 {
+                exp.add(pos);
+                sound.kill_carrot.play();
+            }
         }
     }
 
@@ -961,6 +1041,8 @@ fun update_dt(dt: float) {
     bullets.update_dt(dt);
 
     player.update_dt(dt);
+
+    sound.update_post();
 }
 
 fun draw() {
@@ -1021,7 +1103,7 @@ fun draw_ui() {
     let bar_size = (bar_max_size.0 * exp_percent, bar_max_size.1);
     draw_rectangle(bar_pos, bar_size, colors.player);
 
-    exp_percent = exp.earned_total / { let x: float = 50; x };
+    exp_percent = exp.earned_total / { let x: float = 10000; x };
     let bar_size = (bar_max_size.0 * exp_percent, 4);
     draw_rectangle(bar_pos + (0, 10), bar_size, colors.player);
 
