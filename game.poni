@@ -928,13 +928,12 @@ fun update_dt(dt: float) {
     sound.update_post();
 }
 
-fun draw() {
-    // camera_controller.ready_draw((player.actor.collider.pos + (8, 8)));
-    screen.target_offset = -player.pos;
-    screen.update();
+fun draw_grass_bg() {
+    let min = floor2((player.pos - screen.target_size / 2) / 16);
+    let max = ceil2((player.pos + screen.target_size / 2) / 16);
 
-    for i in 0..32 {
-        for j in 0..32 {
+    for i in min.x..max.x {
+        for j in min.y..max.y {
             //if i % 2 != j % 2 { continue; }
             let tile = (i + j) % 4;
             let tile = ((4, 0) + tile) * 16;
@@ -942,10 +941,27 @@ fun draw() {
             //draw_rectangle((i * 16, j * 16), (16, 16), (#c8c8c8ff));
         }
     }
+}
+
+fun draw_exp() {
+    let min = player.pos - screen.target_size / 2 - 16;
+    let max = player.pos + screen.target_size / 2 + 16;
 
     for i in 0..exp.all.length {
+        let pos = exp.all[i];
+        if pos.x < min.x or pos.y < min.y or pos.x > max.x or pos.y > max.y { continue; }
         draw_texture_flip_frame(tex.tiles, exp.all[i], false, false, (5 * 16, 1 * 16, 16, 16), colors.exp);
     }
+}
+
+fun draw() {
+    // camera_controller.ready_draw((player.actor.collider.pos + (8, 8)));
+    screen.target_offset = -player.pos;
+    screen.update();
+
+    draw_grass_bg();
+
+    draw_exp();
 
     //world_loader.draw_bg();
     //world_loader.draw();
