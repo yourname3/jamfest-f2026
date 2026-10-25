@@ -18,13 +18,13 @@ class Textures {
 
 class Sounds {
     let kill_carrot = new SoundNormal {
-        sound: load_sound("sound/Boom11.wav"),
-        volume: 0.3,
+        sound: load_sound("sound/Boom17.wav"),
+        volume: 0.1,
     };
 
     let hit_carrot = new SoundNormal {
-        sound: load_sound("sound/Hit17.wav"),
-        volume: 0.3,
+        sound: load_sound("sound/Hit24.wav"),
+        volume: 0.1,
     };
 
     let hit_player = new SoundNormal {
@@ -511,6 +511,8 @@ class Enemy {
     var last_cell: vec2i = (0, 0);
     var health: int = 0;
 
+    var hit_anim_cooldown: float = 0;
+
     fun set_pos(pos: vec2) {
         self.pos = pos;
         last_cell = enemies.hash.update(perm_idx, last_cell);
@@ -547,6 +549,7 @@ class Enemy {
             if bullet.add_to_filter(self) {
                 // Take one damage... or something
                 health -= 1;
+                hit_anim_cooldown = 0.4;
                 hit = true;
                 
                 // Knockback. Knock away from player...?
@@ -567,12 +570,15 @@ class Enemy {
         if hit and health > 0 {
             sound.hit_carrot.play();
         }
+
+        if hit_anim_cooldown > 0 { hit_anim_cooldown -= dt; }
     }
 
 
 
     fun draw() {
-        draw_texture_flip_frame(tex.tiles, pos, false, false, (0, 32, 16, 16), colors.enemy)
+        let plus = if hit_anim_cooldown > 0 { 16 } else { 0 };
+        draw_texture_flip_frame(tex.tiles, pos, false, false, (plus, 32, 16, 16), colors.enemy)
     }
 
     fun compute_repel_strength(enemy: Enemy) -> vec2 {
