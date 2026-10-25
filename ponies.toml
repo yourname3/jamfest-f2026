@@ -4,7 +4,6 @@ files = [
     "game.poni",
     "screen.poni",
     "update_smoothing.poni",
-    "physics.poni",
     "screen_transition.poni",
     "spatial_hash.poni",
 ]

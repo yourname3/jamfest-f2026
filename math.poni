@@ -85,3 +85,7 @@ fun vec_rotate(v: vec2, rad: float) -> vec2 {
 
     (v.x * c + v.y * -s, v.x * s + v.y * c)
 }
+
+fun abs(x: float) -> float {
+    if x < 0 { -x } else { x }
+}

@@ -17,12 +17,12 @@ class Textures {
 }
 
 class Sounds {
-    let kill_carrot = new SoundNormal {
+    let kill_carrot = new SoundAccumulator {
         sound: load_sound("sound/Boom17.wav"),
         volume: 0.1,
     };
 
-    let hit_carrot = new SoundNormal {
+    let hit_carrot = new SoundAccumulator {
         sound: load_sound("sound/Hit24.wav"),
         volume: 0.1,
     };
