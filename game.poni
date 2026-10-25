@@ -710,7 +710,7 @@ class EnemyList {
         else if (level == 5 or level == 9 or level == 12) {
             spawn_count += 1;
         }
-        if level % 7 == 0 {
+        if level % 7 == 0 or level == 11 {
             up_health += 1;
         }
     }
