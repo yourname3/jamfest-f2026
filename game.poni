@@ -407,7 +407,7 @@ class Weapon {
         var aim_delta = screen.mouse() - player.pos;
         aim_dir = norm2(aim_delta);
 
-        timer -= dt * (1 + up_amount * { let x = 0.7; x }); //* 4.0;
+        timer -= dt * (1 + up_rate * { let x = 0.7; x }); //* 4.0;
 
         // /// Shoots from player pos in the aim dir.
         // /// TODO: This closure isn't capturing self correctly, I don't think. Manually capture
