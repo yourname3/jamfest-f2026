@@ -1265,7 +1265,7 @@ fun draw_menu() {
     draw_frame(top_left, menu_lerp >= 1.0);
 
     if game_state == GS_MENU {
-        let menu_size = (6, 2) * 16;
+        let menu_size = (10, 2) * 16 + (-4, 0);
         let pos = top_left + (size - menu_size) / 2;
         draw_texture_flip_frame(tex.tiles, pos, false, false,
             (0, 6 * 16, menu_size.x, menu_size.y), colors.player);
