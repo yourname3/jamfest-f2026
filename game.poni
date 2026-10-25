@@ -67,7 +67,7 @@ class Sounds {
     let music = load_sound("music/music.ogg");
     let music_menu = load_sound("music/music_menu.ogg");
 
-    let accum = [exp];
+    let accum = [exp, hit_carrot, kill_carrot];
     fun update_post() {
         for i in 0..accum.length {
             accum[i].update_post();
@@ -216,7 +216,7 @@ class Weapon {
         var b = bullets.spawn();
         b.vel = vel;
         b.lifetime = lifetime;
-        b.damage = damage;
+        b.damage = damage + up_pierce / 2; // Make piercing upgrade also increase damage
         //print("setting type to ", which);
         b.type = which; // Bullets always use the weapon texture...?
         //print("b.type = ", b.type);
@@ -349,7 +349,7 @@ class Weapon {
     }
 }
 
-let PLAYER_MAX_HEALTH = 3; //16;
+let PLAYER_MAX_HEALTH = 16;
 
 class Player {
     var pos: vec2 = (0, 0);
@@ -548,7 +548,7 @@ class Enemy {
 
             if bullet.add_to_filter(self) {
                 // Take one damage... or something
-                health -= 1;
+                health -= bullet.damage;
                 hit_anim_cooldown = 0.4;
                 hit = true;
                 
@@ -678,7 +678,7 @@ class EnemyList {
     fun level_up() {
         spawn_timer_len *= 0.97;
         level += 1;
-        if level % 5 == 0 {
+        if (level == 5 or level == 9 or level == 12 or level == 14 or level == 16) {
             spawn_count += 1;
         }
         if level % 7 == 0 {
@@ -923,6 +923,7 @@ fun update_dt(dt: float) {
     //world_loader.tick();
 
     //world.pre_physics_step();
+    //print(player.level, " ", exp.earned_total, " ", exp.earned_total - exp.earned);
 
     if game_state == GS_GAME {
         enemies.update_dt(dt);
@@ -1025,7 +1026,7 @@ fun draw() {
     draw_menu();
 }
 
-let EXP_TO_WIN = 8;
+let EXP_TO_WIN = 1016;
 
 fun draw_frame(top_left: vec2, use_thick_bottom: bool) {
     let size = screen.target_size;
@@ -1047,7 +1048,7 @@ fun draw_ui() {
     
     draw_line(top_left + (0, bar_offset), top_left + (size.x, bar_offset), 1, colors.player);
     
-    draw_line(top_left + (size.x / 2, bar_offset), top_left + (size.x / 2, bar_offset + 10), 1, colors.player);
+    draw_line(top_left + (size.x / 2, bar_offset), top_left + (size.x / 2, bar_offset + 11), 1, colors.player);
 
     var exp_percent = exp.earned / { let x: float = player.level_cap; x };
     exp_percent = clampf(exp_percent, 0, 1);
