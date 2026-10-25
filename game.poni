@@ -95,44 +95,18 @@ let sound = new Sounds{};
 
 let screen_transition = new ScreenTransition{};
 
-// BUG (?): Can't do thing: Array[StrBuf] = ["", ""]
-
-let level_list: Array[StrBuf] = [
-    str("level/test.tmj")
-];
-
-let loaded_levels: DynArray[StringLoader] = [];
-
-
-
-let PLAYER_ACTOR_SIZE = (14, 9);
-
-let physics_layer = new StaticTiledLayer {
-    tile_width: 16,
-    tile_height: 16,
-    width: 1,
-    colliders: [],
-    tag: 1
-};
-
-let areas_layer = new StaticTiledLayer {
-    tile_width: 16,
-    tile_height: 16,
-    width: 1,
-    colliders: [],
-    tag: 2
-};
-
-let world = new World {
-    layers: [physics_layer]
-};
-
 let player = new Player {};
 
 class ExpList {
     let all: DynArray[vec2] = [];
     var earned: int = 0;
     var earned_total: int = 0;
+
+    fun reset() {
+        all.clear();
+        earned = 0;
+        earned_total = 0;
+    }
 
     fun add(pos: vec2) {
         all.push(pos);
@@ -183,97 +157,6 @@ class Colors {
 }
 let colors = new Colors{};
 
-class CameraController {
-    var x_bound: vec2 = (0, 0);
-    var y_bound: vec2 = (0, 0);
-
-    fun ready_draw(player_pos: vec2) {
-        let min_x = x_bound.0 + screen.target_size.x / 2;
-        let max_x = x_bound.1 - screen.target_size.x / 2;
-
-        let min_y = y_bound.0 + screen.target_size.y / 2;
-        let max_y = y_bound.1 - screen.target_size.y / 2;
-
-        var x = player_pos.x;
-        var y = player_pos.y;
-        if x < min_x { x = min_x; }
-        if x > max_x { x = max_x; }
-        if max_x < min_x {
-            x = (min_x + max_x) / 2;
-        }
-
-        if y < min_y { y = min_y; }
-        if y > max_y { y = max_y; }
-        if max_y < min_y {
-            y = (min_y + max_y) / 2;
-        }
-
-        screen.target_offset = -(x, y);
-
-        // Draw a bordering black rectangle around the entire map.
-        // This is so we don't have to manually set this up in Tiled.
-        //let map = world_loader.cur_map else return;
-        let size = world_loader.map_size * 16;
-        let TILE_DARK_BORDER = (#1c1c1bff);
-        let BORDER_SIZE = 16 * 32;
-        // left and right strips
-        draw_rectangle((x_bound.0 - BORDER_SIZE, -BORDER_SIZE), (BORDER_SIZE, size.y + BORDER_SIZE * 2), TILE_DARK_BORDER);
-        draw_rectangle((x_bound.1, -BORDER_SIZE), (BORDER_SIZE, size.y + BORDER_SIZE * 2), TILE_DARK_BORDER);
-        // top and bottom strips
-        draw_rectangle((-BORDER_SIZE, y_bound.0 - BORDER_SIZE), (size.x + BORDER_SIZE * 2, BORDER_SIZE), TILE_DARK_BORDER);
-        draw_rectangle((-BORDER_SIZE, y_bound.1), (size.x + BORDER_SIZE * 2, BORDER_SIZE), TILE_DARK_BORDER);
-    }
-}
-let camera_controller = new CameraController{};
-
-/// Helper for key just pressed checking due to weird update() system.
-class Key {
-    var was_down: bool = false;
-    var is_down: bool = false;
-    var is_just_pressed: bool = false;
-    let keycode: int;
-
-    fun update() {
-        was_down = is_down;
-        is_down = is_key_down(keycode);
-        is_just_pressed = is_down and not was_down;
-    }
-}
-
-let key_space = new Key { keycode: K_SPACE };
-let key_x = new Key { keycode: K_X };
-let key_r = new Key { keycode: K_R };
-let key_z = new Key { keycode: K_Z };
-let keys = [key_space, key_x, key_r, key_z];
-
-class Animation {
-    let frames: Array[int];
-    var frame: int = 0;
-    var frame_duration: float;
-    var accumulator: float = 0;
-
-    fun update_dt(dt: float) -> bool {
-        accumulator += dt;
-        if accumulator >= frame_duration {
-            accumulator -= frame_duration;
-            frame = (frame + 1) % frames.length;
-
-            return true;           
-        }
-        false
-    }
-
-    fun get_frame() -> int { frames[frame] }
-}
-
-fun gravity(y_vel: float, dt: float) -> float {
-    y_vel += dt * 500.0;
-    if y_vel > 200 {
-        y_vel = 200;
-    }
-    y_vel
-}
-
 class Weapon {
     var which: int = 0;
     var timer: float = 0;
@@ -287,11 +170,15 @@ class Weapon {
 
     let upgrades: DynArray[int] = [];
 
-    fun generate_upgrades(count: int) {
+    fun clear_upgrades() {
         upgrades.clear();
         up_amount = 0;
         up_rate = 0;
         up_pierce = 0;
+    }
+
+    fun generate_upgrades(count: int) {
+        clear_upgrades();
         for i in 0..count {
             var up = randi_range(0, 3);
             if up > 2 { up = 2; }
@@ -447,7 +334,7 @@ class Weapon {
     }
 }
 
-let PLAYER_MAX_HEALTH = 16;
+let PLAYER_MAX_HEALTH = 3; //16;
 
 class Player {
     var pos: vec2 = (0, 0);
@@ -470,6 +357,24 @@ class Player {
     var impulse: vec2 = (0, 0);
 
     let weapon = new Weapon{};
+
+    fun reset() {
+        pos = (0, 0);
+        bullet_timer = 0;
+        flip_h = false;
+        level_cap = 6;
+        level_cap_delta = 2;
+        level_cap_delta_delta = 0.7;
+
+        level = 1;
+        min_upgrades = 0;
+        health = PLAYER_MAX_HEALTH;
+        invince_timer = 0;
+        impulse = (0, 0);
+
+        weapon.which = 0;
+        weapon.clear_upgrades();
+    }
 
     fun inp_left() -> bool { is_key_down(K_LEFT) or is_key_down(K_A) }
     fun inp_right() -> bool { is_key_down(K_RIGHT) or is_key_down(K_D) }
@@ -538,6 +443,10 @@ class Player {
             //print("new weapon: ", weapon.which);
         }
 
+        if exp.earned_total >= EXP_TO_WIN and not game_won_cont {
+            game_state = GS_WIN;
+        }
+
         if invince_timer <= 0 {
             enemies.hash.find_all_in_radius(pos, 12, query_output_buffer);
             if query_output_buffer.length > 0 {
@@ -550,6 +459,10 @@ class Player {
         }
         else {
             invince_timer -= dt;
+        }
+
+        if health <= 0 {
+            game_state = GS_FAIL;
         }
     }
 
@@ -777,6 +690,12 @@ class EnemyList {
 
         //print("dec -> ", alive);
     }
+
+    fun reset() {
+        while alive > 0 {
+            kill(enemies[0]);
+        }
+    }
 }
 
 let enemies = new EnemyList{};
@@ -913,150 +832,43 @@ class BulletList {
 
         //print("dec -> ", alive);
     }
+
+    fun reset() {
+        while alive > 0 {
+            kill(bullets[0]);
+        }
+    }
 }
 
 let bullets = new BulletList{};
-
-class WorldLoader {
-    var pending: StringLoader? = nil;
-    var cur_map: Map? = nil;
-    var pending_for_pull: StrBuf? = nil;
-    var map_size: vec2i = (0, 0);
-    var should_load = false;
-
-    var level_idx: int = 0; //level_list.length - 3;
-    var won: bool = false; // Set when we make the first call to advance_level() this level.
-
-    let external_tileset = load_string("level/tiles.tsj");
-    let external_tileset_name: StrBuf = "tiles.tsj";
-
-    fun load_world_s(loader: StringLoader?) {
-        pending = loader;
-        should_load = true;
-
-        screen_transition.trigger();
-        screen_transition.waiting_on_world = true;
-    }
-
-    fun load_world(path: StrBuf) {
-        //pending = load_string(path);
-        pending_for_pull = path;
-        should_load = true;
-
-        screen_transition.trigger();
-        screen_transition.waiting_on_world = true;
-    }
-
-    fun reload() {
-        should_load = true;
-        // NOTE: This will not overwrite an advance_level() because we already set should_load in
-        // load_world.
-        screen_transition.trigger();
-        screen_transition.waiting_on_world = true;
-    }
-
-    fun advance_level() {
-        if won { return; }
-        won = true;
-
-        if level_idx + 1 < level_list.length { level_idx += 1; }
-        else {
-            // Last level is a bonus level that wraps back around to the win screen.
-            level_idx = level_list.length - 2;
-        }
-        load_world(level_list[level_idx]);
-        screen_transition.trigger();
-        screen_transition.waiting_on_world = true;
-    }
-
-    fun tick() {
-        if not screen_transition.is_ready() { return; }
-        if pending_for_pull.is_some() {
-            pending = load_string(pending_for_pull.or_panic());
-            pending_for_pull = nil;
-        }
-        if not should_load { return; }
-        
-        let pending_ = pending else return;
-        let data = get_loaded_string(pending_);
-        let data = data else return;
-
-        let external_tileset = get_loaded_string(external_tileset) else return;
-        print(external_tileset);
-
-        let map = load_map_with_tilesets(data,
-            [{ let x: StrBuf = "../tex/tiles.png"; x }], [tex.tiles],
-            [external_tileset_name], [external_tileset]);
-
-        cur_map = map;
-        should_load = false;
-
-        let map = map else return;
-        map_size = get_tile_map_size(map);
-
-        physics_layer.colliders = [];
-        physics_layer.width = map_size.x;
-
-        areas_layer.colliders = [];
-        areas_layer.width = map_size.x;
-        world.actors = [];
-        world.solids = [];
-
-        screen_transition.waiting_on_world = false;
-
-        won = false;
-
-        camera_controller.x_bound.0 = 0;
-        camera_controller.x_bound.1 = map_size.x * 16;
-        camera_controller.y_bound.0 = 0;
-        camera_controller.y_bound.1 = map_size.y * 16;
-        var t = 0.0;
-
-        for y in 0..map_size.y {
-            for x in 0..map_size.x {
-                var tile = get_tile_map_tile(map, "main", (x, y));
-
-                print(tile);
-                
-                fun map_to_physics(tile: int) -> int {
-                    if tile == -1 { return T_EMPTY; }
-                    return T_SOLID;
-                }
-
-                physics_layer.colliders.push(map_to_physics(tile));
-            }
-        }
-    }
-
-    fun draw_bg() {
-        let map = cur_map else return;
-        let size = map_size * 16;
-
-        // draw_map(map, "bg", (0, 0, size.x, size.y));
-        // draw_map(map, "bg2", (0, 0, size.x, size.y));
-    }
-
-    fun draw() {
-        let map = cur_map else return;
-        let size = map_size * 16;
-        draw_map(map, "main", (0, 0, size.x, size.y));
-        // draw_map(map, "fg", (0, 0, size.x, size.y));
-    }
-}
-
-let world_loader = new WorldLoader{};
 
 fun initialize() {
     //world_loader.load_world(level_list[world_loader.level_idx]);
     // enemies.spawn_random_pos(200);
 }
 
-fun update_dt(dt: float) {
-    // Update keys for is_just_pressed tracking
-    for i in 0..keys.length {
-        keys[i].update();
-    }
+fun reset_game() {
+    enemies.reset();
+    bullets.reset();
+    player.reset();
+    exp.reset();
 
+    game_won_cont = false;
+}
+
+let GS_MENU = 0;
+let GS_GAME = 1;
+let GS_WIN  = 2;
+let GS_FAIL = 3;
+var game_state: int = GS_MENU;
+
+var game_won_cont: bool = false;
+
+/// How much the current menu is currently covering the game state.
+var menu_lerp: float = 1.0;
+var menu_lerp_t: float = 1.0;
+
+fun update_dt(dt: float) {
     // print(enemies.hash.aabb);
     // print(bullets.hash.aabb);
     // print(player.pos);
@@ -1068,17 +880,50 @@ fun update_dt(dt: float) {
 
     //world.pre_physics_step();
 
-    enemies.update_dt(dt);
+    if game_state == GS_GAME {
+        enemies.update_dt(dt);
 
-    for i in 0..enemies.alive {
-        let e = enemies.enemies[i];
-        e.update_dt(dt);
+        for i in 0..enemies.alive {
+            let e = enemies.enemies[i];
+            e.update_dt(dt);
+        }
+        
+
+        bullets.update_dt(dt);
+
+        player.update_dt(dt);
+
+        menu_lerp_t = clampf(menu_lerp_t - 2.0 * dt, 0, 1);
+        menu_lerp = ease_out_cubic(menu_lerp_t);
     }
-    
-
-    bullets.update_dt(dt);
-
-    player.update_dt(dt);
+    else {
+        if game_state == GS_MENU {
+            if button_play.update(dt) {
+                reset_game();
+                game_state = GS_GAME;
+            }
+        }
+        if game_state == GS_FAIL {
+            if button_menu.update(dt) {
+                game_state = GS_MENU;
+            }
+            if button_retry.update(dt) {
+                reset_game();
+                game_state = GS_GAME;
+            }
+        }
+        if game_state == GS_WIN {
+            if button_continue.update(dt) {
+                game_won_cont = true;
+                game_state = GS_GAME; // No reset
+            }
+            if button_done.update(dt) {
+                game_state = GS_MENU;
+            }
+        }
+        menu_lerp_t = clampf(menu_lerp_t + 2.0 * dt, 0, 1);
+        menu_lerp = ease_in_cubic(menu_lerp_t);
+    }
 
     sound.update_post();
 }
@@ -1117,9 +962,18 @@ fun draw() {
 
     draw_ui();
     //screen_transition.draw();
+    draw_menu();
 }
 
-let EXP_TO_WIN = 1111;
+let EXP_TO_WIN = 8;
+
+fun draw_frame(top_left: vec2, use_thick_bottom: bool) {
+    let size = screen.target_size;
+    draw_line(top_left + (0, 0), top_left + (size.x, 0), 2, colors.player);
+    draw_line(top_left + (0, size.y), top_left + (size.x, size.y), 2, colors.player);
+    draw_line(top_left + (0, 0), top_left + (0, size.y), 2, colors.player);
+    draw_line(top_left + (size.x, 0), top_left + (size.x, size.y), if use_thick_bottom { 2 } else { 1 }, colors.player);
+}
 
 fun draw_ui() {
     let size = screen.target_size;
@@ -1128,10 +982,7 @@ fun draw_ui() {
     let bar_offset = size.y - 18;
     draw_rectangle(top_left + (0, bar_offset), (size.x, size.y - bar_offset), (#000f));
 
-    draw_line(top_left + (0, 0), top_left + (size.x, 0), 2, colors.player);
-    draw_line(top_left + (0, size.y), top_left + (size.x, size.y), 2, colors.player);
-    draw_line(top_left + (0, 0), top_left + (0, size.y), 2, colors.player);
-    draw_line(top_left + (size.x, 0), top_left + (size.x, size.y), 2, colors.player);
+    draw_frame(top_left, true);
 
     
     draw_line(top_left + (0, bar_offset), top_left + (size.x, bar_offset), 1, colors.player);
@@ -1172,3 +1023,141 @@ fun draw_ui() {
 }
 
 
+class Button {
+    var pos: vec2i;
+    var frame: vec4;
+
+    var hovered: bool = false;
+    var mouse_pressed_on: bool = false;
+
+    var muted: bool = false;
+
+    fun in_rect(p: vec2, rpos: vec2, size: vec2) -> bool {
+        if (p.x < rpos.x) or (p.y < rpos.y) {
+            return false;
+        }
+        if (p.x > rpos.x + size.x) or (p.y > rpos.y + size.y) {
+            return false;
+        }
+
+        return true;
+    }
+
+    fun button_disabled() -> bool {
+        return false;
+    }
+
+    fun update(dt: float) -> bool {
+        var mouse = screen.mouse() + screen.target_size / 2 + screen.target_offset;
+        var pressed_this_frame = false;
+
+        hovered = false;
+        var mouse_in_rect = in_rect(mouse, pos, (16 * 3, 16));
+        //print(mouse, " ", pos);
+
+        let disabled = button_disabled();
+
+        if mouse_in_rect {
+            hovered = true;
+        }
+
+        if hovered {
+            if is_mouse_button_pressed(MOUSE_LEFT) {
+                if not disabled {
+                    mouse_pressed_on = true;
+                }
+            }
+        }
+
+        if mouse_pressed_on and is_mouse_button_released(MOUSE_LEFT) {
+            // Only call the callback if we're still on the button when we release it
+            if mouse_in_rect {
+                if not disabled {
+                    // TODO: play sound.
+                    pressed_this_frame = true;
+                }
+            }
+
+            // Either way, we're no longer pressed on.
+            mouse_pressed_on = false;
+        }
+
+        pressed_this_frame
+    }
+
+    fun draw(top_left: vec2) {
+        //var brightness = if mouse_pressed_on { 0.7 } else { if hovered { 1 } else { 0.8 } };
+
+        // let disabled = button_disabled();
+        // if disabled {
+        //     brightness = 0.70;
+        // }
+
+        var frame = frame;
+        if hovered { frame.x += 16 * 3; }
+
+        draw_texture_flip_frame(tex.tiles, top_left + pos, false, false,
+            frame, colors.player);
+    }
+}
+
+let button_play = new Button {
+    pos: (136, 140),
+    frame: (0, 16 * 8, 16 * 3, 16),
+};
+
+let button_retry = new Button {
+    pos: (136, 140),
+    frame: (0, 16 * 10, 16 * 3, 16),
+};
+
+let button_menu = new Button {
+    pos: (136, 140 + 18),
+    frame: (0, 16 * 11, 16 * 3, 16),
+};
+
+let button_done = new Button {
+    pos: (136, 140 + 18),
+    frame: (0, 16 * 9, 16 * 3, 16),
+};
+
+let button_continue = new Button {
+    pos: (136, 140),
+    frame: (0, 16 * 14, 16 * 3, 16),
+};
+
+fun draw_menu() {
+    let size = screen.target_size;
+    var top_left = -screen.target_offset - size / 2;
+
+    top_left.y -= size.y * (1.0 - menu_lerp);
+    draw_rectangle(top_left, size, (#000f));
+    draw_frame(top_left, menu_lerp >= 1.0);
+
+    if game_state == GS_MENU {
+        let menu_size = (6, 2) * 16;
+        let pos = top_left + (size - menu_size) / 2;
+        draw_texture_flip_frame(tex.tiles, pos, false, false,
+            (0, 6 * 16, menu_size.x, menu_size.y), colors.player);
+
+        button_play.draw(top_left);
+    }
+    else if game_state == GS_FAIL {
+        let menu_size = (4, 1) * 16;
+        let pos = top_left + (size - menu_size) / 2;
+        draw_texture_flip_frame(tex.tiles, pos, false, false,
+            (0, 13 * 16, menu_size.x, menu_size.y), colors.player);
+
+        button_retry.draw(top_left);
+        button_menu.draw(top_left);
+    }
+    else if game_state == GS_WIN {
+        let menu_size = (3, 1) * 16;
+        let pos = top_left + (size - menu_size) / 2;
+        draw_texture_flip_frame(tex.tiles, pos, false, false,
+            (0, 12 * 16, menu_size.x, menu_size.y), colors.player);
+
+        button_continue.draw(top_left);
+        button_done.draw(top_left);
+    }
+}
