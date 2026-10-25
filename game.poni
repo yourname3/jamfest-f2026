@@ -349,7 +349,8 @@ class Weapon {
     }
 }
 
-let PLAYER_MAX_HEALTH = 16;
+let PLAYER_MAX_HEALTH_NORMAL = 16;
+var PLAYER_MAX_HEALTH = PLAYER_MAX_HEALTH_NORMAL;
 
 class Player {
     var pos: vec2 = (0, 0);
@@ -971,6 +972,12 @@ fun update_dt(dt: float) {
     else {
         if game_state == GS_MENU {
             if button_play.update(dt) {
+                PLAYER_MAX_HEALTH = PLAYER_MAX_HEALTH_NORMAL;
+                reset_game();
+                game_state = GS_GAME;
+            }
+            if button_play_1hp.update(dt) {
+                PLAYER_MAX_HEALTH = 1;
                 reset_game();
                 game_state = GS_GAME;
             }
@@ -1209,6 +1216,11 @@ let button_play = new Button {
     frame: (0, 16 * 8, 16 * 3, 16),
 };
 
+let button_play_1hp = new Button {
+    pos: (136, 140 + 18),
+    frame: (0, 16 * 15, 16 * 3, 16),
+};
+
 let button_retry = new Button {
     pos: (136, 140),
     frame: (0, 16 * 10, 16 * 3, 16),
@@ -1244,6 +1256,7 @@ fun draw_menu() {
             (0, 6 * 16, menu_size.x, menu_size.y), colors.player);
 
         button_play.draw(top_left);
+        button_play_1hp.draw(top_left);
     }
     else if game_state == GS_FAIL {
         let menu_size = (4, 1) * 16;
