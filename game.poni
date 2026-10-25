@@ -407,7 +407,7 @@ class Weapon {
         var aim_delta = screen.mouse() - player.pos;
         aim_dir = norm2(aim_delta);
 
-        timer -= dt * (1 + up_amount * { let x = 0.9; x }); //* 4.0;
+        timer -= dt * (1 + up_amount * { let x = 0.7; x }); //* 4.0;
 
         // /// Shoots from player pos in the aim dir.
         // /// TODO: This closure isn't capturing self correctly, I don't think. Manually capture
@@ -447,6 +447,8 @@ class Weapon {
     }
 }
 
+let PLAYER_MAX_HEALTH = 16;
+
 class Player {
     var pos: vec2 = (0, 0);
     var bullet_timer: float = 0;
@@ -462,6 +464,11 @@ class Player {
     var min_upgrades: int = 0;
     var max_upgrades: int = 0;
 
+    var health: int = PLAYER_MAX_HEALTH;
+    var invince_timer: float = 0.0;
+
+    var impulse: vec2 = (0, 0);
+
     let weapon = new Weapon{};
 
     fun inp_left() -> bool { is_key_down(K_LEFT) or is_key_down(K_A) }
@@ -473,9 +480,12 @@ class Player {
         var vel: vec2 = norm2((
             if inp_left() { flip_h = true; -1 } else if inp_right() { flip_h = false; 1 } else { 0 },
             if inp_up() { -1 } else if inp_down() { 1 } else { 0 }
-        ));
+        )) * 100;
 
-        pos += vel * dt * 100;
+        vel += impulse;
+        impulse = lerp(impulse, (0, 0), 0.1); // NOTE: Not framerate independent but update_dt is basically physics_process
+
+        pos += vel * dt;
 
         // bullet_timer -= dt;
         // while bullet_timer <= 0 {
@@ -527,9 +537,28 @@ class Player {
             }
             //print("new weapon: ", weapon.which);
         }
+
+        if invince_timer <= 0 {
+            enemies.hash.find_all_in_radius(pos, 12, query_output_buffer);
+            if query_output_buffer.length > 0 {
+                let enem = query_output_buffer[0];
+                let enem = enemies.enemies_perm[enem];
+                impulse = norm2(pos - enem.pos) * 250;
+                invince_timer = 2.0;
+                health -= 1;
+            }
+        }
+        else {
+            invince_timer -= dt;
+        }
     }
 
     fun draw() {
+        if invince_timer > 0 {
+            if invince_timer % 0.2 < 0.1 {
+                return; // Flashing anim?
+            }
+        }
         draw_texture_flip_frame(tex.tiles, pos, flip_h, false, (16 * 4, 16, 16, 16), colors.player)
     }
 }
@@ -1090,6 +1119,8 @@ fun draw() {
     //screen_transition.draw();
 }
 
+let EXP_TO_WIN = 1111;
+
 fun draw_ui() {
     let size = screen.target_size;
     let top_left = -screen.target_offset - size / 2;
@@ -1104,6 +1135,8 @@ fun draw_ui() {
 
     
     draw_line(top_left + (0, bar_offset), top_left + (size.x, bar_offset), 1, colors.player);
+    
+    draw_line(top_left + (size.x / 2, bar_offset), top_left + (size.x / 2, bar_offset + 10), 1, colors.player);
 
     var exp_percent = exp.earned / { let x: float = player.level_cap; x };
     exp_percent = clampf(exp_percent, 0, 1);
@@ -1112,8 +1145,8 @@ fun draw_ui() {
     let bar_size = (bar_max_size.0 * exp_percent, bar_max_size.1);
     draw_rectangle(bar_pos, bar_size, colors.player);
 
-    exp_percent = exp.earned_total / { let x: float = 1300; x };
-    print(exp.earned_total);
+    exp_percent = exp.earned_total / { let x: float = 100; x };//EXP_TO_WIN; x };
+    exp_percent = clampf(exp_percent, 0, 1);
     let bar_size = (bar_max_size.0 * exp_percent, 4);
     draw_rectangle(bar_pos + (0, 10), bar_size, colors.player);
 
@@ -1122,6 +1155,15 @@ fun draw_ui() {
         let upgrade = player.weapon.upgrades[i];
         draw_texture_flip_frame(tex.tiles, upgrade_pos + (i * 16, 0), false, false, (upgrade * 16, 4 * 16, 16, 16), colors.player);
     }
+
+    let bar_pos = top_left + (2 + size.x / 2, bar_offset + 2);
+    let bar_max_size = ((size.x - 4) / 2 - 2, 9);
+    exp_percent = player.health / { let x: float = PLAYER_MAX_HEALTH; x };
+    exp_percent = clampf(exp_percent, 0, 1);
+    let bar_size = (bar_max_size.0 * exp_percent, bar_max_size.1);
+
+    draw_rectangle(bar_pos, bar_size, colors.player);
+
 }
 
 
