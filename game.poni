@@ -270,7 +270,7 @@ class Weapon {
         var aim_delta = screen.mouse() - player.pos;
         aim_dir = norm2(aim_delta);
 
-        timer -= dt;
+        timer -= dt; //* 4.0;
 
         // /// Shoots from player pos in the aim dir.
         // /// TODO: This closure isn't capturing self correctly, I don't think. Manually capture
@@ -317,6 +317,8 @@ class Player {
 
     // Cap for unlocking next weapon
     var level_cap: int = 6;
+    var level_cap_delta: int = 3;
+    var level_cap_delta_delta: int = 1;
 
     let weapon = new Weapon{};
 
@@ -359,6 +361,11 @@ class Player {
 
         if exp.earned >= level_cap {
             exp.earned -= level_cap;
+            // cubic growth..?
+            level_cap += level_cap_delta;
+            level_cap_delta += level_cap_delta_delta;
+            level_cap_delta_delta += 1;
+            enemies.level_up();
             // TODO: Increase level_cap
             weapon.which = randi_range(1, 4);
             //print("new weapon: ", weapon.which);
@@ -383,6 +390,11 @@ class Enemy {
     var last_cell: vec2i = (0, 0);
     var health: int = 0;
 
+    fun set_pos(pos: vec2) {
+        self.pos = pos;
+        last_cell = enemies.hash.update(perm_idx, last_cell);
+    }
+
     fun update_dt(dt: float) {
         let dir = (player.pos - pos);
         let desired_vel = norm2(dir) * 25.0;
@@ -403,7 +415,10 @@ class Enemy {
 
         
 
-        bullets.hash.find_all_in_radius(pos, 12, query_output_buffer);
+        bullets.hash.find_all_in_radius(pos, 18, query_output_buffer);
+        if query_output_buffer.length > 0 {
+            print("found ", query_output_buffer.length);
+        }
 
         for i in 0..query_output_buffer.length {
             let bullet = bullets.bullets_perm[query_output_buffer[i]];
@@ -497,11 +512,45 @@ class EnemyList {
         enemy
     }
 
+    fun choose(val1: float, val2: float) -> float {
+        if randi_range(0, 2) == 0 { val1 } else { val2}
+    }
+
     fun spawn_random_pos(count: int) {
         for i in 0..count {
             let e = spawn();
-            e.pos = (randf_range(-1000, 1000), randf_range(-1000, 1000));
+            let pos = if randi_range(0, 2) == 0 {
+                player.pos + (randf_range(-300, 300), choose(-300, 300))
+            }
+            else {
+                player.pos + (choose(-300, 300), randf_range(-300, 300))
+            };
             e.health = 1;
+            e.vel = (0, 0);
+            e.set_pos(pos);
+        }
+    }
+
+    var spawn_timer = 0.0;
+    var spawn_timer_len = 0.4;
+    var spawn_count: int = 1;
+    var level: int = 0;
+
+    fun level_up() {
+        spawn_timer_len *= 0.97;
+        level += 1;
+        if level % 3 == 0 {
+            spawn_count += 1;
+        }
+    }
+
+    fun update_dt(dt: float) {
+        //return;
+        spawn_timer += dt;// * 4.0;
+
+        while spawn_timer >= spawn_timer_len {
+            spawn_timer -= spawn_timer_len;
+            spawn_random_pos(spawn_count);
         }
     }
 
@@ -573,6 +622,7 @@ class Bullet {
     fun add_to_filter(e: Enemy) -> bool {
         for i in 0..filter.length {
             if filter[i] == e {
+                //print("returning false");
                 return false;
             }
         }
@@ -806,7 +856,7 @@ let world_loader = new WorldLoader{};
 
 fun initialize() {
     //world_loader.load_world(level_list[world_loader.level_idx]);
-    enemies.spawn_random_pos(200);
+    // enemies.spawn_random_pos(200);
 }
 
 fun update_dt(dt: float) {
@@ -822,9 +872,12 @@ fun update_dt(dt: float) {
 
     //world.pre_physics_step();
 
+    enemies.update_dt(dt);
+
     for e in enemies.iter() {
         e.update_dt(dt);
     }
+    
 
     bullets.update_dt(dt);
 
