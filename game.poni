@@ -732,6 +732,12 @@ fun draw_ui() {
     
     draw_line(top_left + (0, bar_offset), top_left + (size.x, bar_offset), 1, colors.player);
 
+    var exp_percent = exp.earned / { let x = 20.0; x };
+    exp_percent = clampf(exp_percent, 0, 1);
+    let bar_pos = top_left + (2, bar_offset + 2);
+    let bar_max_size = ((size.x - 4) / 2, bar_offset - 2);
+    let bar_size = (bar_max_size.0 * exp_percent, bar_max_size.1);
+    draw_rectangle(bar_pos, bar_size, colors.player);
 }
 
 

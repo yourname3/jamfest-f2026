@@ -45,6 +45,11 @@ fun hsv_to_rgb(hsv: vec3) -> vec3 {
 
 fun maxf(a: float, b: float) -> float { if a > b { a } else { b } }
 fun minf(a: float, b: float) -> float { if a < b { a } else { b } }
+fun clampf(v: float, min: float, max: float) -> float {
+    if v < min { min }
+    else if v > max { max }
+    else { v }
+}
 
 fun rgb_to_hsv(rgb: vec3) -> vec3 {
     let r = rgb.0; let g = rgb.1; let b = rgb.2;
