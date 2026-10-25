@@ -78,3 +78,10 @@ fun rgb_to_hsv(rgb: vec3) -> vec3 {
 
     (h, s, max)
 }
+
+fun vec_rotate(v: vec2, rad: float) -> vec2 {
+    let c = cos(rad);
+    let s = sin(rad);
+
+    (v.x * c + v.y * -s, v.x * s + v.y * c)
+}
