@@ -1145,12 +1145,17 @@ fun draw_ui() {
     let bar_size = (bar_max_size.0 * exp_percent, bar_max_size.1);
     draw_rectangle(bar_pos, bar_size, colors.player);
 
-    exp_percent = exp.earned_total / { let x: float = 100; x };//EXP_TO_WIN; x };
+    exp_percent = exp.earned_total / { let x: float = EXP_TO_WIN; x };
     exp_percent = clampf(exp_percent, 0, 1);
+    let bar_max_size = (size.x - 4, 4);
     let bar_size = (bar_max_size.0 * exp_percent, 4);
     draw_rectangle(bar_pos + (0, 10), bar_size, colors.player);
 
-    let upgrade_pos = bar_pos + (-2, -2 - 16);
+    let upgrade_pos = bar_pos + (-1, -2 - 16);
+    // Draw the frame + the current weapon
+    draw_texture_flip_frame(tex.tiles, upgrade_pos, false, false, (0, 5 * 16, 16, 16), colors.player);
+    draw_texture_flip_frame(tex.tiles, upgrade_pos, false, false, (player.weapon.which * 16, 3 * 16, 16, 16), colors.player);
+    let upgrade_pos = upgrade_pos + (16, 0);
     for i in 0..player.weapon.upgrades.length {
         let upgrade = player.weapon.upgrades[i];
         draw_texture_flip_frame(tex.tiles, upgrade_pos + (i * 16, 0), false, false, (upgrade * 16, 4 * 16, 16, 16), colors.player);
