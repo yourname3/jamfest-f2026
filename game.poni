@@ -372,6 +372,9 @@ class Player {
 
     var impulse: vec2 = (0, 0);
 
+    var anim_timer: float = 0;
+    var anim_frame: int = 0;
+
     let weapon = new Weapon{};
 
     fun reset() {
@@ -408,6 +411,17 @@ class Player {
         impulse = lerp(impulse, (0, 0), 0.1); // NOTE: Not framerate independent but update_dt is basically physics_process
 
         pos += vel * dt;
+
+        anim_timer = (anim_timer + dt) % 0.4;
+        if dot2(vel, vel) < 1 {
+            anim_frame = 0;
+        }
+        else if anim_timer < 0.2 {
+            anim_frame = 1;
+        }
+        else {
+            anim_frame = 2;
+        }
 
         // bullet_timer -= dt;
         // while bullet_timer <= 0 {
@@ -495,7 +509,8 @@ class Player {
                 return; // Flashing anim?
             }
         }
-        draw_texture_flip_frame(tex.tiles, pos, flip_h, false, (16 * 4, 16, 16, 16), colors.player)
+        
+        draw_texture_flip_frame(tex.tiles, pos + (-2, 0), flip_h, false, (anim_frame * 20, 16, 20, 16), colors.player)
     }
 }
 
