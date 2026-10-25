@@ -19,9 +19,9 @@ function copy_resources() {
 copy_resources sound wav
 copy_resources sound ogg
 copy_resources tex   png
-copy_resources fonts ttf
-copy_resources level json
-copy_resources level tmj
+#copy_resources fonts ttf
+#copy_resources level json
+#copy_resources level tmj
 
 rm -f "$DIST/sound/music.wav"
 rm -f "$DIST/sound/music_menu.wav"
