@@ -29,12 +29,12 @@ class Sounds {
 
     let exp = new SoundAccumulator {
         sound: load_sound("sound/Pickup13.wav"),
-        volume: 0.3,
+        volume: 0.2,
     };
 
     let shoot_base = new SoundNormal {
         sound: load_sound("sound/Shoot3_base.wav"),
-        volume: 0.3,
+        volume: 0.15,
     };
 
     let shoot_nova = new SoundNormal {
@@ -44,12 +44,12 @@ class Sounds {
 
     let shoot_rapid = new SoundNormal {
         sound: load_sound("sound/Shoot1_rapid.wav"),
-        volume: 0.1,
+        volume: 0.07,
     };
 
     let shoot_shotgun = new SoundNormal {
         sound: load_sound("sound/Shoot5_shot.wav"),
-        volume: 0.3,
+        volume: 0.2,
     };
 
     let music = load_sound("music/music.ogg");
@@ -699,6 +699,12 @@ class EnemyList {
         while alive > 0 {
             kill(enemies[0]);
         }
+
+        spawn_timer = 0.0;
+        spawn_timer_len = 0.7;
+        spawn_count = 1;
+        up_health = 0;
+        level = 0;
     }
 }
 
