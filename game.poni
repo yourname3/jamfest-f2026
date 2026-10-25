@@ -204,7 +204,7 @@ class Weapon {
     // lifted from what was a closure
     var aim_dir: vec2 = (0, 0);
 
-    fun shoot_temporary(pos: vec2, vel: vec2, lifetime: float, damage: int) {
+    fun shoot_temporary(pos: vec2, vel: vec2, lifetime: float, damage: int, pierce: int) {
         var b = bullets.spawn();
         b.vel = vel;
         b.lifetime = lifetime;
@@ -212,6 +212,7 @@ class Weapon {
         //print("setting type to ", which);
         b.type = which; // Bullets always use the weapon texture...?
         //print("b.type = ", b.type);
+        b.pierce = pierce;
         b.set_pos(pos);
     }
 
@@ -220,14 +221,14 @@ class Weapon {
     /// self.
     // Even putting the self_ here doens't work due to other issues.
     // let self_ = self;
-    fun shoot_normal(speed: float, lifetime: float, damage: int) {
-        shoot_temporary(player.pos, aim_dir * speed, lifetime, damage);
+    fun shoot_normal(speed: float, lifetime: float, damage: int, pierce: int) {
+        shoot_temporary(player.pos, aim_dir * speed, lifetime, damage, pierce);
     }
 
     fun weapon_basic() {
         while timer <= 0 {
             timer += 0.4;
-            shoot_normal(150, 2, 1);
+            shoot_normal(150, 2, 1, 1);
         }
     }
 
@@ -236,17 +237,31 @@ class Weapon {
             timer += 0.8;
             for i in 0..5 {
                 let deviation = vec_rotate(aim_dir, randf_range(-0.2, 0.2));
-                shoot_temporary(player.pos, deviation * 130, 1, 1);
+                shoot_temporary(player.pos, deviation * 130, 1, 1, 1);
             }
         }
     }
 
     fun weapon_rapid() {
-        
+        while timer <= 0 {
+            timer += 0.08;
+            let deviation = vec_rotate(aim_dir, randf_range(-0.03, 0.03));
+            shoot_temporary(player.pos, deviation * 200, 4, 1, 1);
+        }
     }
 
     fun weapon_nova() {
+        while timer <= 0 {
+            timer += 1.2;
+            for i in -16..16 {
+                let i: float = i;
+                let offset = i * (3.14159265 / 16.0);
 
+                let deviation = vec_rotate(aim_dir, offset);
+                let speed = lerp(200, 40, abs(i / 16));
+                shoot_temporary(player.pos, deviation * speed, 1, 1, 1);
+            }
+        }
     }
 
     fun update_dt(dt: float) {
@@ -345,7 +360,7 @@ class Player {
         if exp.earned >= level_cap {
             exp.earned -= level_cap;
             // TODO: Increase level_cap
-            weapon.which = randi_range(0, 2);
+            weapon.which = randi_range(1, 4);
             //print("new weapon: ", weapon.which);
         }
     }
@@ -546,8 +561,7 @@ class Bullet {
     var type: int = 0;
     var damage: int = 0;
 
-    var what = 0;
-    var what1 = 0;
+    var pierce: int = 0;
 
     /// Enemies that this bullet isn't allowed to damage again until it is respawned.
     /// (Note that this could be a little bit weird if an enemy itself respwans, but that
@@ -563,7 +577,11 @@ class Bullet {
             }
         }
 
+        pierce -= 1;
+        //print(lifetime, " -- ", pierce);
+
         filter.push(e);
+        //print(" returning true ");
         return true;
     }
 
@@ -580,7 +598,8 @@ class Bullet {
         last_cell = bullets.hash.update(self.perm_idx, last_cell);
         //print(last_cell);
 
-        if lifetime <= 0 {
+        if lifetime <= 0 or pierce <= 0 {
+            // NOTE: Weird iteration.. but mostly works
             bullets.kill(self);
         }
     }
