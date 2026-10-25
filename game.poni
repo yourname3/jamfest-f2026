@@ -562,14 +562,17 @@ class Enemy {
         for i in 0..query_output_buffer.length {
             let bullet = bullets.bullets_perm[query_output_buffer[i]];
 
-            if bullet.add_to_filter(self) {
-                // Take one damage... or something
-                health -= bullet.damage;
-                hit_anim_cooldown = 0.4;
-                hit = true;
-                
-                // Knockback. Knock away from player...?
-                vel += norm2(pos - player.pos) * 150 * bullet.knockback;
+            // Only accept additional damage if we're not dead.
+            if health > 0 {
+                if bullet.add_to_filter(self) {
+                    // Take one damage... or something
+                    health -= bullet.damage;
+                    hit_anim_cooldown = 0.4;
+                    hit = true;
+                    
+                    // Knockback. Knock away from player...?
+                    vel += norm2(pos - player.pos) * 150 * bullet.knockback;
+                }
             }
         }
 
