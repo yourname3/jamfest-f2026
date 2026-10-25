@@ -64,8 +64,8 @@ class Sounds {
     let win = new SoundNormal { sound: load_sound("sound/win.wav"), volume: 0.2 };
     let lose = new SoundNormal { sound: load_sound("sound/lose.wav"), volume: 0.2 };
 
-    let music = load_sound("music/music.ogg");
-    let music_menu = load_sound("music/music_menu.ogg");
+    let music = load_sound("sound/music.ogg");
+    let music_menu = load_sound("sound/music_menu.ogg");
 
     let accum = [exp, hit_carrot, kill_carrot];
     fun update_post() {
@@ -594,7 +594,7 @@ class Enemy {
 
     fun draw() {
         let plus = if hit_anim_cooldown > 0 { 16 } else { 0 };
-        draw_texture_flip_frame(tex.tiles, pos, false, false, (plus, 32, 16, 16), colors.enemy)
+        draw_texture_flip_frame(tex.tiles, pos, false, false, (plus, 48, 16, 16), colors.enemy)
     }
 
     fun compute_repel_strength(enemy: Enemy) -> vec2 {
@@ -692,9 +692,19 @@ class EnemyList {
     var level: int = 0;
 
     fun level_up() {
-        spawn_timer_len *= 0.97;
+        spawn_timer_len *= 0.94;
         level += 1;
-        if (level == 5 or level == 9 or level == 12 or level == 14 or level == 16) {
+        if level >= 14 {
+            if level >= 18 {
+                if level % 3 == 0 { // After level 18 (post game) increase spawn count like this
+                    spawn_count += 1;
+                }
+            }
+            else {
+                spawn_count += 1; // During game, for level >= 14, always increase spawn count
+            }
+        }
+        else if (level == 5 or level == 9 or level == 12) {
             spawn_count += 1;
         }
         if level % 7 == 0 {
@@ -817,7 +827,7 @@ class Bullet {
 
     fun draw() {
         //print(type, " ", damage);
-        draw_texture_flip_frame(tex.tiles, pos, false, false, (type * 16, 3 * 16, 16, 16), colors.player)
+        draw_texture_flip_frame(tex.tiles, pos, false, false, ((4 + type) * 16, 3 * 16, 16, 16), colors.player)
     }
 }
 
@@ -1040,8 +1050,8 @@ fun draw_grass_bg() {
     for i in min.x..max.x {
         for j in min.y..max.y {
             //if i % 2 != j % 2 { continue; }
-            let tile = (i + j) % 4;
-            let tile = ((4, 0) + tile) * 16;
+            let tile = (round((1 + sin(1 + i * j)) * 6) + (i + j)) % 6;
+            let tile = ((4, 0) + (tile, 0)) * 16;
             draw_texture_flip_frame(tex.tiles, (i, j) * 16, false, false, (tile.0, tile.1, 16, 16), colors.bg);
             //draw_rectangle((i * 16, j * 16), (16, 16), (#c8c8c8ff));
         }
@@ -1126,7 +1136,7 @@ fun draw_ui() {
     let upgrade_pos = bar_pos + (-1, -2 - 16);
     // Draw the frame + the current weapon
     draw_texture_flip_frame(tex.tiles, upgrade_pos, false, false, (0, 5 * 16, 16, 16), colors.player);
-    draw_texture_flip_frame(tex.tiles, upgrade_pos, false, false, (player.weapon.which * 16, 3 * 16, 16, 16), colors.player);
+    draw_texture_flip_frame(tex.tiles, upgrade_pos, false, false, ((4 + player.weapon.which) * 16, 3 * 16, 16, 16), colors.player);
     let upgrade_pos = upgrade_pos + (16, 0);
     for i in 0..player.weapon.upgrades.length {
         let upgrade = player.weapon.upgrades[i];
