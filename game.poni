@@ -510,7 +510,7 @@ class Player {
             }
         }
         
-        draw_texture_flip_frame(tex.tiles, pos + (-2, 0), flip_h, false, (anim_frame * 20, 16, 20, 16), colors.player)
+        draw_texture_flip_frame(tex.tiles, pos + (-3, 0), flip_h, false, (anim_frame * 22, 16, 22, 16), colors.player)
     }
 }
 
