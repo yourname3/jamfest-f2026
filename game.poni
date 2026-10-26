@@ -960,6 +960,11 @@ fun update_dt(dt: float) {
     for i in 0..keys.length {
         keys[i].update();
     }
+    // Update mouse for similar
+    mouse_was_down = mouse_is_down;
+    mouse_is_down = is_mouse_button_down(MOUSE_LEFT);
+    mouse_just_pressed = (mouse_is_down and not mouse_was_down);
+    mouse_just_released = (mouse_was_down and not mouse_is_down);
     // print(enemies.hash.aabb);
     // print(bullets.hash.aabb);
     // print(player.pos);
@@ -1156,6 +1161,10 @@ fun draw_ui() {
 
 }
 
+var mouse_is_down: bool = false;
+var mouse_was_down: bool = false;
+var mouse_just_pressed: bool = false;
+var mouse_just_released: bool = false;
 
 class Button {
     var pos: vec2i;
@@ -1196,14 +1205,14 @@ class Button {
         }
 
         if hovered {
-            if is_mouse_button_pressed(MOUSE_LEFT) {
+            if mouse_just_pressed {
                 if not disabled {
                     mouse_pressed_on = true;
                 }
             }
         }
 
-        if mouse_pressed_on and is_mouse_button_released(MOUSE_LEFT) {
+        if mouse_pressed_on and mouse_just_released {
             // Only call the callback if we're still on the button when we release it
             if mouse_in_rect {
                 if not disabled {
