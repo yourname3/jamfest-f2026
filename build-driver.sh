@@ -1,4 +1,4 @@
-GAME_NAME="horse-tower"
+GAME_NAME="case-of-the-haunted-carrots"
 DIST_NAME="${DIST_NAME:-$GAME_NAME}"
 
 ponies build -t "$TOOLCHAIN" -p release
